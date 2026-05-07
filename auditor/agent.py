@@ -63,19 +63,21 @@ def _prune_stale_read_pages(messages: list[dict], latest_id: str, read_page_ids:
             msg["content"] = "[page snapshot removed — superseded by later read_page]"
 
 
-def _execute_captures(captures: list[OutputCapture], session: BrowserSession) -> dict[str, str]:
+def _execute_captures(
+    captures: list[OutputCapture],
+    session_data: dict[str, str],
+) -> dict[str, str]:
+    url = session_data.get("_last_url", "")
+    title = session_data.get("_last_title", "")
     result: dict[str, str] = {}
     for cap in captures:
         if cap.strategy == "current_url":
-            result[cap.key] = session.current_url()
+            result[cap.key] = url
         elif cap.strategy == "page_title":
-            try:
-                result[cap.key] = session._page.title()
-            except Exception:
-                result[cap.key] = ""
+            result[cap.key] = title
         elif cap.strategy.startswith("url_segment:"):
             n = int(cap.strategy.split(":")[1])
-            parts = [p for p in session.current_url().split("/") if p]
+            parts = [p for p in url.split("/") if p]
             result[cap.key] = parts[n] if n < len(parts) else ""
     return result
 
@@ -159,6 +161,7 @@ def run_step(
         first_claim = False
         console.print(f"    [dim]starting ReAct loop (max {max_actions} steps)…[/dim]")
 
+        snap: dict[str, str] = {}
         status = _react_loop(
             claim=claim,
             session=session,
@@ -167,7 +170,11 @@ def run_step(
             messages=messages,
             read_page_ids=read_page_ids,
             max_actions=max_actions,
+            snap=snap,
         )
+        # snap is populated inside the loop at verify_claim time
+        session_data["_last_url"] = snap.get("url", "")
+        session_data["_last_title"] = snap.get("title", "")
 
         record = ev.finalize()
         evidence_records.append(record)
@@ -193,7 +200,7 @@ def run_step(
     # Run output captures — only if step passed
     captured: dict[str, str] = {}
     if step.status == StepStatus.verified and step.output_capture:
-        captured = _execute_captures(step.output_capture, session)
+        captured = _execute_captures(step.output_capture, session_data)
         session_data.update(captured)
         for k, v in captured.items():
             console.print(f"    [dim]captured:[/dim] {k} = {v}")
@@ -209,6 +216,7 @@ def _react_loop(
     messages: list[dict[str, Any]],
     read_page_ids: list[str],
     max_actions: int,
+    snap: dict[str, str] | None = None,
 ) -> ClaimStatus:
     for step_num in range(1, max_actions + 1):
         console.print(f"    [dim]── calling LLM (step {step_num}/{max_actions}) …[/dim]")
@@ -249,6 +257,12 @@ def _react_loop(
                 evidence.set_verdict(args["verdict"], args["confidence"], args["reasoning"])
                 claim.status = ClaimStatus(args["verdict"])
                 _log_verdict(args["verdict"], args["confidence"], args["reasoning"])
+                if snap is not None:
+                    snap["url"] = session.current_url()
+                    try:
+                        snap["title"] = session._page.title()
+                    except Exception:
+                        snap["title"] = ""
                 return claim.status
 
     console.print(f"    [yellow]max actions reached without verdict → blocked[/yellow]")
