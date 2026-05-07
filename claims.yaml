@@ -1,30 +1,46 @@
 config:
   base_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
 
-claims:
-  - id: claim_001
-    description: "Contract menu item is visible in the main navigation"
-    type: existence
-    navigation: "/"
-    expected: "a menu item or navigation link labelled 'Contract' or 'Contracts' is visible on the page"
+flows:
+  - id: flow_fcr_verification
+    description: "Financial Change Request end-to-end verification"
+    steps:
+      - id: step_001
+        goal: "Verify FCR is accessible from the main navigation"
+        claims:
+          - id: claim_001
+            description: "Contract menu item is visible in the main navigation"
+            type: existence
+            navigation: "/"
+            expected: "a menu item or navigation link labelled 'Contract' or 'Contracts' is visible on the page"
 
-  - id: claim_002
-    description: "Financial Change Request option is accessible within the Contract menu"
-    type: existence
-    navigation: "/"
-    expected: "after clicking the Contract menu, a sub-menu or link labelled 'Financial Change Request' (or similar) is visible"
-    depends_on: [claim_001]
+          - id: claim_002
+            description: "Financial Change Request option is accessible within the Contract menu"
+            type: existence
+            navigation: "/"
+            expected: "after clicking the Contract menu, a sub-menu or link labelled 'Financial Change Request' (or similar) is visible"
+            depends_on: [claim_001]
 
-  - id: claim_003
-    description: "Financial Change Request list contains at least one record that can be opened"
-    type: behavioral
-    navigation: "/en/ctr/contract_financial_cr_browse"
-    expected: "make sure at least one row is visible in the list, and clicking the first row opens a detail record page"
-    depends_on: [claim_002]
+      - id: step_002
+        goal: "Open the first FCR record from the list"
+        depends_on: [step_001]
+        output_capture:
+          - key: record_url
+            strategy: current_url
+        claims:
+          - id: claim_003
+            description: "Financial Change Request list contains at least one record that can be opened"
+            type: behavioral
+            navigation: "/en/ctr/contract_financial_cr_browse"
+            expected: "at least one row is visible in the list, and clicking the first row opens a detail record page"
 
-  - id: claim_004
-    description: "First Financial Change Request record page displays key fields"
-    type: existence
-    navigation: "/en/ctr/contract_financial_cr_browse"
-    expected: "the record detail page loads and shows key identifying fields — at minimum: contract number or ID, and change request ID or title. Fields may be spread across tabs (Change Request, Financials, Workflow) — do not require all fields on a single tab."
-    depends_on: [claim_003]
+      - id: step_003
+        goal: "Verify the FCR record detail page displays key fields"
+        depends_on: [step_002]
+        input: [record_url]
+        claims:
+          - id: claim_004
+            description: "First Financial Change Request record page displays key fields"
+            type: existence
+            navigation: "/en/ctr/contract_financial_cr_browse"
+            expected: "the record detail page loads and shows key identifying fields — at minimum: contract number or ID, and change request ID or title. Fields may be spread across tabs (Change Request, Financials, Workflow) — do not require all fields on a single tab."

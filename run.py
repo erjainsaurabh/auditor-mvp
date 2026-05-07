@@ -11,18 +11,17 @@ load_dotenv(Path(__file__).parent / ".env", override=True)
 import yaml
 from rich.console import Console
 
-from auditor.agent import run_claim
-from auditor.evidence import EvidenceCollector
-from auditor.graph import build_graph, cascade_failure, execution_order, mark_blocked
+from auditor.agent import run_step
+from auditor.graph import build_step_graph, cascade_step_failure, mark_steps_blocked, step_execution_order
 from auditor.llm_client import LLMClient
-from auditor.loader import ClaimStatus, load_claims
+from auditor.loader import StepStatus, load_flows
 from auditor.report import print_summary, write_report
 from auditor.tools import BrowserSession
 
 console = Console()
 
 
-def _login(session: "BrowserSession", config: dict, console: "Console") -> None:
+def _login(session: BrowserSession, config: dict, console: Console) -> None:
     auth = config["app"].get("auth")
     if not auth:
         return
@@ -46,27 +45,32 @@ def _login(session: "BrowserSession", config: dict, console: "Console") -> None:
 
 
 def main() -> None:
-    claims_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("claims.yaml")
+    flows_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("claims.yaml")
     config_path = Path("config.yaml")
 
-    if not claims_path.exists():
-        console.print(f"[red]claims file not found: {claims_path}[/red]")
+    if not flows_path.exists():
+        console.print(f"[red]flows file not found: {flows_path}[/red]")
         sys.exit(1)
 
     config = yaml.safe_load(config_path.read_text())
-    claims_file = load_claims(claims_path)
+    flow_file = load_flows(flows_path)
     run_id = f"run_{uuid.uuid4().hex[:8]}"
     output_dir = Path(config["evidence"]["output_dir"])
 
+    total_claims = len(flow_file.all_claims)
+    total_steps = len(flow_file.all_steps)
     console.print(f"\n[bold]Auditor MVP[/bold] — run [cyan]{run_id}[/cyan]")
-    console.print(f"Claims: {len(claims_file.claims)}  Target: {config['app']['base_url']}\n")
+    console.print(f"Flows: {len(flow_file.flows)}  Steps: {total_steps}  Claims: {total_claims}")
+    console.print(f"Target: {config['app']['base_url']}\n")
 
-    graph = build_graph(claims_file.claims)
-    order = execution_order(graph)
-    claim_map = {c.id: c for c in claims_file.claims}
+    step_graph = build_step_graph(flow_file.flows)
+    order = step_execution_order(step_graph)
+
+    # Map step_id → step object across all flows
+    step_map = {s.id: s for s in flow_file.all_steps}
 
     llm = LLMClient(config["llm"])
-    evidence_records: list[dict] = []
+    all_evidence: list[dict] = []
 
     with BrowserSession(
         base_url=config["app"]["base_url"],
@@ -75,44 +79,40 @@ def main() -> None:
     ) as session:
         _login(session, config, console)
 
-        prior_url: str | None = None
+        session_data: dict[str, str] = {}
 
-        for claim_id in order:
-            claim = claim_map[claim_id]
+        for step_id in order:
+            step = step_map[step_id]
 
-            if claim.status == ClaimStatus.blocked:
-                console.print(f"  [yellow]⊘[/yellow] {claim_id} — blocked")
+            if step.status == StepStatus.blocked:
+                console.print(f"  [yellow]⊘[/yellow] {step_id} — blocked (all claims skipped)")
                 continue
 
-            console.print(f"  [blue]~[/blue] {claim_id}: {claim.description}")
-            ev = EvidenceCollector(run_id=run_id, claim_id=claim_id, output_dir=output_dir)
-
-            status = run_claim(
-                claim=claim,
+            status, evidence_records, session_data = run_step(
+                step=step,
                 session=session,
                 llm=llm,
-                evidence=ev,
+                output_dir=output_dir,
+                run_id=run_id,
                 max_actions=config["agent"]["max_actions_per_claim"],
-                prior_url=prior_url,
+                session_data=session_data,
             )
 
-            prior_url = session.current_url()
+            all_evidence.extend(evidence_records)
 
-            record = ev.finalize()
-            evidence_records.append(record)
+            icon = {"verified": "[green]✓[/green]", "failed": "[red]✗[/red]"}.get(str(status), "[yellow]⊘[/yellow]")
+            console.print(f"  {icon} {step_id} — {status}\n")
 
-            icon = {"verified": "[green]✓[/green]", "failed": "[red]✗[/red]"}.get(status, "[yellow]⊘[/yellow]")
-            console.print(f"  {icon} {claim_id} — {status}")
-
-            if status in (ClaimStatus.failed, ClaimStatus.blocked):
-                blocked = cascade_failure(graph, claim_id)
-                mark_blocked(graph, blocked)
+            if status in (StepStatus.failed, StepStatus.blocked):
+                blocked = cascade_step_failure(step_graph, step_id)
+                mark_steps_blocked(flow_file.flows, set(blocked))
                 if blocked:
-                    console.print(f"    [dim]cascading block to: {', '.join(blocked)}[/dim]")
+                    console.print(f"  [dim]cascading block to steps: {', '.join(blocked)}[/dim]\n")
 
     report_path = Path("report.json")
-    write_report(claims_file.claims, evidence_records, run_id, report_path)
-    print_summary(claims_file.claims, evidence_records, run_id)
+    all_claims = flow_file.all_claims
+    write_report(flow_file, all_evidence, run_id, report_path)
+    print_summary(all_claims, all_evidence, run_id)
     console.print(f"\n[dim]Report saved to {report_path}[/dim]")
 
 

@@ -6,26 +6,26 @@ from typing import Any
 
 from rich.console import Console
 from rich.rule import Rule
-from rich.text import Text
 
 from auditor.evidence import EvidenceCollector
+from auditor.graph import build_claim_graph, cascade_claim_failure, claim_execution_order, mark_claims_blocked
 from auditor.llm_client import LLMClient
-from auditor.loader import Claim, ClaimStatus
+from auditor.loader import Claim, ClaimStatus, OutputCapture, Step, StepStatus
 from auditor.tools import BrowserSession
 
 console = Console()
 
 _TOOL_STYLE = {
-    "navigate":       ("cyan",   "🌐"),
-    "read_page":      ("blue",   "📄"),
-    "click":          ("yellow", "🖱 "),
-    "hover":          ("yellow", "🖱 "),
-    "fill_field":     ("green",  "✏ "),
-    "clear_field":    ("green",  "✏ "),
-    "submit_form":    ("green",  "↩ "),
-    "get_field_options": ("blue","📋"),
-    "take_screenshot":("magenta","📸"),
-    "verify_claim":   ("bold",   "⚖ "),
+    "navigate":          ("cyan",    "🌐"),
+    "read_page":         ("blue",    "📄"),
+    "click":             ("yellow",  "🖱 "),
+    "hover":             ("yellow",  "🖱 "),
+    "fill_field":        ("green",   "✏ "),
+    "clear_field":       ("green",   "✏ "),
+    "submit_form":       ("green",   "↩ "),
+    "get_field_options": ("blue",    "📋"),
+    "take_screenshot":   ("magenta", "📸"),
+    "verify_claim":      ("bold",    "⚖ "),
 }
 
 
@@ -52,39 +52,101 @@ def _log_verdict(verdict: str, confidence: str, reasoning: str) -> None:
     console.print(f"           [dim]{reasoning[:200]}[/dim]")
 
 
-def run_claim(
-    claim: Claim,
+def _prune_stale_read_pages(messages: list[dict], latest_id: str, read_page_ids: list[str]) -> None:
+    """Replace old read_page results with a placeholder — only the latest snapshot is needed."""
+    for msg in messages:
+        if (
+            msg.get("role") == "tool"
+            and msg.get("tool_call_id") in read_page_ids
+            and msg.get("tool_call_id") != latest_id
+        ):
+            msg["content"] = "[page snapshot removed — superseded by later read_page]"
+
+
+def _execute_captures(captures: list[OutputCapture], session: BrowserSession) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for cap in captures:
+        if cap.strategy == "current_url":
+            result[cap.key] = session.current_url()
+        elif cap.strategy == "page_title":
+            try:
+                result[cap.key] = session._page.title()
+            except Exception:
+                result[cap.key] = ""
+        elif cap.strategy.startswith("url_segment:"):
+            n = int(cap.strategy.split(":")[1])
+            parts = [p for p in session.current_url().split("/") if p]
+            result[cap.key] = parts[n] if n < len(parts) else ""
+    return result
+
+
+def run_step(
+    step: Step,
     session: BrowserSession,
     llm: LLMClient,
-    evidence: EvidenceCollector,
-    max_actions: int = 20,
-    prior_url: str | None = None,
-) -> ClaimStatus:
-    console.print(Rule(f"[bold]{claim.id}[/bold] — {claim.description}", style="dim"))
-    console.print(f"    [dim]expected:[/dim] {claim.expected}")
+    output_dir: Path,
+    run_id: str,
+    max_actions: int,
+    session_data: dict[str, str] | None = None,
+) -> tuple[StepStatus, list[dict], dict[str, str]]:
+    session_data = session_data or {}
+    console.print(Rule(f"[bold blue]{step.id}[/bold blue] — {step.goal}", style="blue"))
 
-    setup_log = _run_setup(claim, session, evidence)
+    # Log any session data this step is receiving
+    available = {k: v for k, v in session_data.items() if k in step.input}
+    if available:
+        for k, v in available.items():
+            console.print(f"    [dim]session_data:[/dim] {k} = {v}")
 
-    if setup_log:
-        console.print(f"    [dim]setup:[/dim] {'; '.join(setup_log)}")
+    claim_graph = build_claim_graph(step.claims)
+    order = claim_execution_order(claim_graph)
+    claim_map = step.claim_map
 
-    # Build context note for the LLM
-    if setup_log:
-        nav_context = (
-            f"Setup already completed: {'; '.join(setup_log)}. "
-            f"You are already on the correct page — do NOT navigate away. "
-            f"Proceed directly to verifying the claim.\n"
-        )
-    elif prior_url:
-        nav_context = (
-            f"The browser is currently at: {prior_url} (carried over from the previous claim). "
-            f"Navigate to {claim.navigation} if needed, then verify the claim.\n"
-        )
-    else:
-        nav_context = f"Start by navigating to: {claim.navigation}\n"
+    messages: list[dict[str, Any]] = []
+    read_page_ids: list[str] = []
+    evidence_records: list[dict] = []
+    first_claim = True
 
-    messages: list[dict[str, Any]] = [
-        {
+    for claim_id in order:
+        claim = claim_map[claim_id]
+
+        if claim.status == ClaimStatus.blocked:
+            console.print(f"    [yellow]⊘[/yellow] {claim_id} — blocked")
+            continue
+
+        console.print(Rule(f"[bold]{claim_id}[/bold] — {claim.description}", style="dim"))
+        console.print(f"    [dim]expected:[/dim] {claim.expected}")
+
+        ev = EvidenceCollector(run_id=run_id, claim_id=claim_id, output_dir=output_dir)
+
+        setup_log = _run_setup(claim, session, ev)
+        if setup_log:
+            console.print(f"    [dim]setup:[/dim] {'; '.join(setup_log)}")
+
+        # Build the user message for this claim, continuing the shared conversation
+        if setup_log:
+            nav_context = (
+                f"Setup already completed: {'; '.join(setup_log)}. "
+                f"You are already on the correct page — do NOT navigate away. "
+                f"Proceed directly to verifying the claim.\n"
+            )
+        elif first_claim:
+            if available:
+                data_str = "\n".join(f"  {k}: {v}" for k, v in available.items())
+                nav_context = (
+                    f"Session data from previous steps:\n{data_str}\n"
+                    f"Use this data to navigate directly if relevant, "
+                    f"otherwise start at: {claim.navigation}\n"
+                )
+            else:
+                nav_context = f"Start by navigating to: {claim.navigation}\n"
+        else:
+            nav_context = (
+                f"You are continuing from the previous verification. "
+                f"Navigate to {claim.navigation} if needed, then verify this claim.\n"
+            )
+
+        messages.append({
             "role": "user",
             "content": (
                 f"Claim: {claim.description}\n"
@@ -92,13 +154,64 @@ def run_claim(
                 + nav_context
                 + "Verify this claim and call verify_claim when done."
             ),
-        }
-    ]
+        })
 
-    console.print(f"    [dim]starting ReAct loop (max {max_actions} steps)…[/dim]")
+        first_claim = False
+        console.print(f"    [dim]starting ReAct loop (max {max_actions} steps)…[/dim]")
 
-    for step in range(1, max_actions + 1):
-        console.print(f"    [dim]── calling LLM (step {step}/{max_actions}) …[/dim]")
+        status = _react_loop(
+            claim=claim,
+            session=session,
+            llm=llm,
+            evidence=ev,
+            messages=messages,
+            read_page_ids=read_page_ids,
+            max_actions=max_actions,
+        )
+
+        record = ev.finalize()
+        evidence_records.append(record)
+
+        icon = {"verified": "[green]✓[/green]", "failed": "[red]✗[/red]"}.get(str(status), "[yellow]⊘[/yellow]")
+        console.print(f"    {icon} {claim_id} — {status}")
+
+        if status in (ClaimStatus.failed, ClaimStatus.blocked):
+            blocked = cascade_claim_failure(claim_graph, claim_id)
+            mark_claims_blocked(step.claims, set(blocked))
+            if blocked:
+                console.print(f"    [dim]cascading block to: {', '.join(blocked)}[/dim]")
+
+    # Determine step status
+    statuses = [claim_map[cid].status for cid in order]
+    if any(s == ClaimStatus.failed for s in statuses):
+        step.status = StepStatus.failed
+    elif all(s in (ClaimStatus.verified, ClaimStatus.unverifiable) for s in statuses):
+        step.status = StepStatus.verified
+    else:
+        step.status = StepStatus.failed
+
+    # Run output captures — only if step passed
+    captured: dict[str, str] = {}
+    if step.status == StepStatus.verified and step.output_capture:
+        captured = _execute_captures(step.output_capture, session)
+        session_data.update(captured)
+        for k, v in captured.items():
+            console.print(f"    [dim]captured:[/dim] {k} = {v}")
+
+    return step.status, evidence_records, session_data
+
+
+def _react_loop(
+    claim: Claim,
+    session: BrowserSession,
+    llm: LLMClient,
+    evidence: EvidenceCollector,
+    messages: list[dict[str, Any]],
+    read_page_ids: list[str],
+    max_actions: int,
+) -> ClaimStatus:
+    for step_num in range(1, max_actions + 1):
+        console.print(f"    [dim]── calling LLM (step {step_num}/{max_actions}) …[/dim]")
         response = llm.reason(messages)
         usage = response.usage
         if usage:
@@ -115,7 +228,7 @@ def run_claim(
             name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
 
-            _log_llm_decision(step, name, args)
+            _log_llm_decision(step_num, name, args)
 
             result = _dispatch(name, args, claim, session, evidence)
             evidence.log_action(f"{name}({args})", result)
@@ -127,6 +240,10 @@ def run_claim(
                 "tool_call_id": tool_call.id,
                 "content": result,
             })
+
+            if name == "read_page":
+                read_page_ids.append(tool_call.id)
+                _prune_stale_read_pages(messages, tool_call.id, read_page_ids)
 
             if name == "verify_claim":
                 evidence.set_verdict(args["verdict"], args["confidence"], args["reasoning"])
