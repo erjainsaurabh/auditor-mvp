@@ -1,0 +1,31 @@
+app:
+  base_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
+  login_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
+  headless: false
+  slow_mo_ms: 500
+  auth:
+    username_field: "Email Address"
+    password_field: "Password"
+    submit: true
+
+llm:
+  reasoning_model: "claude-sonnet-4-6"
+  fast_model: "claude-haiku-4-5-20251001"
+  max_tokens: 4096
+  cache_system_prompt: true
+  max_budget_usd: 10.00
+  budget_duration: "1d"
+
+  # Swap provider by changing model strings only — no code changes needed:
+  # reasoning_model: "bedrock/claude-sonnet-4-6"
+  # reasoning_model: "azure/gpt-4o"
+  # fast_model: "ollama/llama3"
+
+agent:
+  max_actions_per_claim: 30
+  max_retries_per_claim: 3
+
+evidence:
+  output_dir: "evidence"
+  screenshot_on_every_action: false
+  screenshot_on_verdict: true

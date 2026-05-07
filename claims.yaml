@@ -1,0 +1,30 @@
+config:
+  base_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
+
+claims:
+  - id: claim_001
+    description: "Contract menu item is visible in the main navigation"
+    type: existence
+    navigation: "/"
+    expected: "a menu item or navigation link labelled 'Contract' or 'Contracts' is visible on the page"
+
+  - id: claim_002
+    description: "Financial Change Request option is accessible within the Contract menu"
+    type: existence
+    navigation: "/"
+    expected: "after clicking the Contract menu, a sub-menu or link labelled 'Financial Change Request' (or similar) is visible"
+    depends_on: [claim_001]
+
+  - id: claim_003
+    description: "Financial Change Request list contains at least one record that can be opened"
+    type: behavioral
+    navigation: "/en/ctr/contract_financial_cr_browse"
+    expected: "make sure at least one row is visible in the list, and clicking the first row opens a detail record page"
+    depends_on: [claim_002]
+
+  - id: claim_004
+    description: "First Financial Change Request record page displays key fields"
+    type: existence
+    navigation: "/en/ctr/contract_financial_cr_browse"
+    expected: "the record detail page loads and shows key identifying fields — at minimum: contract number or ID, and change request ID or title. Fields may be spread across tabs (Change Request, Financials, Workflow) — do not require all fields on a single tab."
+    depends_on: [claim_003]

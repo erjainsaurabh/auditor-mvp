@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+@dataclass
+class EvidenceCollector:
+    run_id: str
+    claim_id: str
+    output_dir: Path
+    _actions: list[str] = field(default_factory=list, init=False)
+    _screenshots: list[str] = field(default_factory=list, init=False)
+    _verdict: dict | None = field(default=None, init=False)
+
+    @property
+    def claim_dir(self) -> Path:
+        d = self.output_dir / self.run_id / self.claim_id
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def log_action(self, action: str, result: str) -> None:
+        self._actions.append(f"{action} → {result}")
+
+    def save_screenshot(self, page, label: str) -> str:
+        path = self.claim_dir / f"{label}.png"
+        page.screenshot(path=str(path))
+        self._screenshots.append(str(path))
+        return str(path)
+
+    def set_verdict(self, verdict: str, confidence: str, reasoning: str) -> None:
+        self._verdict = {
+            "verdict": verdict,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def finalize(self) -> dict:
+        record = {
+            "claim_id": self.claim_id,
+            "run_id": self.run_id,
+            "action_sequence": self._actions,
+            "screenshots": self._screenshots,
+            **(self._verdict or {"verdict": "blocked", "confidence": "low", "reasoning": "no verdict recorded"}),
+        }
+        (self.claim_dir / "evidence.json").write_text(json.dumps(record, indent=2))
+        return record

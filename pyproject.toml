@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "auditor-mvp"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "playwright>=1.44",
+    "litellm>=1.40",
+    "pydantic>=2.0",
+    "networkx>=3.3",
+    "pyyaml>=6.0",
+    "beautifulsoup4>=4.12",
+    "python-dotenv>=1.0",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["auditor"]
