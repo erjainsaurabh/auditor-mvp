@@ -1,8 +1,8 @@
 claims:
   req_001:
     claim_id: req_001
-    recorded_at: '2026-05-08T22:03:24.658966+00:00'
-    run_id: run_17e34595
+    recorded_at: '2026-05-09T13:08:03.279714+00:00'
+    run_id: run_27f728d2
     verdict: verified
     confidence: high
     actions:
@@ -17,21 +17,20 @@ claims:
       assertions: []
     - tool: take_screenshot
       args:
-        label: Main navigation bar showing Requisition menu item
+        label: Main navigation showing Requisition menu item
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: The page structure clearly shows a "Main Menu" navigation containing
-          a "Requisition" button. The menu item is present in the top navigation bar
-          alongside other items like Vendors, Catalog, Sourcing, Contracts, etc. Visual
-          confirmation was captured in the screenshot.
+        reasoning: The 'Requisition' menu item is clearly visible in the Main Menu
+          navigation bar at the top of the page. It is displayed as a button in the
+          navigation list, appearing between 'Catalog' and 'Sourcing' menu items.
+          The HTML structure confirms this is part of the navigation "Main Menu" element.
       selectors: []
       assertions:
       - Main Menu
-      - Requisition
     setup_records: []
   req_002:
     claim_id: req_002
@@ -118,7 +117,7 @@ claims:
       selectors:
       - type: xpath
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
-        successes: 14
+        successes: 20
         failures: 0
       - type: text
         value: Create Sourcing Requisition
@@ -270,7 +269,7 @@ claims:
       selectors:
       - type: xpath
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
-        successes: 14
+        successes: 20
         failures: 0
       - type: text
         value: Create Sourcing Requisition
@@ -395,7 +394,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 14
+        successes: 20
         failures: 0
       - type: text
         value: Save
@@ -449,7 +448,7 @@ claims:
       selectors:
       - type: xpath
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
-        successes: 11
+        successes: 17
         failures: 0
       - type: text
         value: Create Sourcing Requisition
@@ -511,7 +510,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
-        successes: 9
+        successes: 15
         failures: 0
       assertions: []
     - tool: read_page
@@ -524,7 +523,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_sact;071"]
-        successes: 9
+        successes: 15
         failures: 0
       - type: text
         value: DEPARTMENT OF HOMELESS SERVICES
@@ -611,7 +610,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
-        successes: 9
+        successes: 15
         failures: 0
       assertions: []
     - tool: read_page
@@ -624,7 +623,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_ssact;4169"]
-        successes: 9
+        successes: 15
         failures: 0
       - type: text
         value: CHIEF OF STAFF
@@ -654,8 +653,8 @@ claims:
     setup_records: []
   req_017:
     claim_id: req_017
-    recorded_at: '2026-05-08T22:03:56.544505+00:00'
-    run_id: run_17e34595
+    recorded_at: '2026-05-09T13:08:42.389784+00:00'
+    run_id: run_27f728d2
     verdict: verified
     confidence: high
     actions:
@@ -663,10 +662,10 @@ claims:
       args: {}
       selectors: []
       assertions: []
-    - tool: select_option
+    - tool: fill_field
       args:
         field_label: Contract Type
-        option_value: General Contract (CT1)
+        value: General Contract (CT1)
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
@@ -677,25 +676,27 @@ claims:
       args: {}
       selectors: []
       assertions: []
-    - tool: take_screenshot
+    - tool: click
       args:
-        label: Contract Type successfully selected showing "General Contract (CT1)"
+        element_description: General Contract (CT1)
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: The Contract Type field successfully accepted the selection "General
-          Contract (CT1)" using select_option. The page read confirms the field displays
-          the selected value, and the form remained on the same Create Requisition
-          page throughout the interaction. The selection is clearly visible in both
-          the status message ("General Contract (CT1) added to selection") and the
-          form field itself.
+        reasoning: The Contract Type field was successfully selected using fill_field
+          with "General Contract (CT1)", a dropdown suggestion appeared, and it was
+          clicked to confirm the selection. The page now clearly shows the Contract
+          Type field displaying "General Contract (CT1)" with a delete button next
+          to it, confirming the value is properly selected and displayed in the form.
       selectors: []
       assertions:
       - General Contract (CT1)
-      - General Contract (CT1) added to selection
     setup_records: []
   req_018:
     claim_id: req_018
@@ -749,7 +750,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
-        successes: 7
+        successes: 12
         failures: 0
       assertions: []
     - tool: read_page
@@ -790,7 +791,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
-        successes: 6
+        successes: 11
         failures: 0
       assertions: []
     - tool: fill_field
@@ -800,7 +801,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
-        successes: 6
+        successes: 11
         failures: 0
       assertions: []
     - tool: read_page
@@ -827,8 +828,8 @@ claims:
     setup_records: []
   req_021:
     claim_id: req_021
-    recorded_at: '2026-05-08T22:04:19.863127+00:00'
-    run_id: run_17e34595
+    recorded_at: '2026-05-09T13:09:05.935634+00:00'
+    run_id: run_27f728d2
     verdict: verified
     confidence: high
     actions:
@@ -864,14 +865,13 @@ claims:
         verdict: verified
         confidence: high
         reasoning: The Funding Type field successfully accepted the "Expense" value
-          from the test data. After filling the field with fill_field and clicking
-          the suggestion, the page now displays "Expense" as the selected value with
-          a "Delete the value" button, confirming the selection was accepted by the
-          form.
+          from the test data. After filling the field with fill_field and selecting
+          from the suggestion list, the page snapshot confirms the Funding Type combobox
+          now displays "Expense" as the selected value. The field is functioning correctly
+          and accepts user selections as expected.
       selectors: []
       assertions:
       - Expense
-      - Delete the value
     setup_records: []
   req_022:
     claim_id: req_022
@@ -887,7 +887,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskProcExeSum"]
-        successes: 5
+        successes: 10
         failures: 0
       - type: aria_label
         value: Executive Summary
@@ -912,15 +912,11 @@ claims:
     setup_records: []
   req_023:
     claim_id: req_023
-    recorded_at: '2026-05-08T22:04:48.933614+00:00'
-    run_id: run_17e34595
+    recorded_at: '2026-05-09T13:09:34.611905+00:00'
+    run_id: run_27f728d2
     verdict: verified
     confidence: high
     actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
     - tool: click
       args:
         element_description: Save
@@ -930,16 +926,29 @@ claims:
       args: {}
       selectors: []
       assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requisition saved with REQ number assigned
+      selectors: []
+      assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: 'Saving the fully filled requisition successfully assigned a unique
-          REQ number (REQ262338) which is displayed in the page title as ''Requisition:
-          REQ262338 - Test Requisition MVP (Draft)''. Both the ''Cancel requisition''
-          and ''Duplicate Req.'' buttons are visible on the page. The requisition
-          was successfully saved with all the required information, and the system
-          automatically generated a unique requisition identifier.'
+        reasoning: 'After clicking the Save button on the fully filled requisition
+          form, the page successfully saved and assigned a unique REQ number. The
+          page title now displays "Requisition: REQ262343 - Test Requisition MVP (Draft):
+          PASSPort" which matches the expected pattern "Requisition: REQxxxxxx - <label>
+          (Draft)". The unique requisition number REQ262343 has been assigned. Additionally,
+          the expected buttons are now visible: "Cancel requisition" and "Duplicate
+          Req." buttons are both present on the page. All previously entered data
+          (Label, Requesting Agency, Division, Contract Type, Anticipated Contract
+          Period dates, Funding Type, and Procurement Description) is preserved and
+          displayed correctly. The status shows as "Draft" as expected for a newly
+          saved requisition.'
       selectors: []
-      assertions: []
+      assertions:
+      - Cancel requisition
+      - Duplicate Req.
+      - Draft
     setup_records: []

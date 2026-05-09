@@ -180,17 +180,38 @@ def _replay_selector(
     return "error: all selectors failed"
 
 
+def _resolve_template(value: str, session_data: dict[str, str]) -> str:
+    """Replace {{key}} placeholders with values from session_data."""
+    import re
+    def replacer(m: re.Match) -> str:
+        return session_data.get(m.group(1), m.group(0))
+    return re.sub(r"\{\{(\w+)\}\}", replacer, value)
+
+
+def _templatize_actions(actions: list[ActionRecord], session_data: dict[str, str]) -> None:
+    """Replace session_data values in navigate targets with {{key}} placeholders."""
+    for action in actions:
+        if action.tool == "navigate":
+            target = action.args.get("target", "")
+            for key, val in session_data.items():
+                if val and val in target:
+                    action.args["target"] = target.replace(val, f"{{{{{key}}}}}")
+                    break
+
+
 def _try_fingerprint_replay(
     claim: Claim,
     session: BrowserSession,
     evidence: EvidenceCollector,
     fp: ClaimFingerprint,
     snap: dict[str, str],
+    session_data: dict[str, str] | None = None,
 ) -> ClaimStatus | None:
     """
     Replay a fingerprint without calling the LLM.
     Returns ClaimStatus on success, None if replay fails (triggers ReAct fallback).
     """
+    sd = session_data or {}
     last_snapshot = ""
 
     for action in fp.actions:
@@ -198,8 +219,9 @@ def _try_fingerprint_replay(
         args = action.args
 
         if tool == "navigate":
-            result = session.navigate(args["target"])
-            evidence.log_action(f"navigate({args['target']}) [replay]", result)
+            target = _resolve_template(args["target"], sd)
+            result = session.navigate(target)
+            evidence.log_action(f"navigate({target}) [replay]", result)
             if result.startswith("error"):
                 return None
 
@@ -284,7 +306,7 @@ def run_step(
 
         # Get stored fingerprint now (needed by _run_setup for fast-fill)
         fp_for_claim = fp_store.get(claim.id) if fp_store else None
-        setup_log, setup_records = _run_setup(claim, session, ev, fp_for_claim)
+        setup_log, setup_records = _run_setup(claim, session, ev, fp_for_claim, step.navigation)
         if setup_log:
             console.print(f"    [dim]setup:[/dim] {'; '.join(setup_log)}")
             for sr in setup_records:
@@ -300,10 +322,11 @@ def run_step(
         elif first_claim:
             if available:
                 data_str = "\n".join(f"  {k}: {v}" for k, v in available.items())
+                nav_hint = f"\n  start at: {step.navigation}" if step.navigation else ""
                 nav_context = (
                     f"Session data from previous steps:\n{data_str}\n"
-                    f"Use this data to navigate directly if relevant, "
-                    f"otherwise start at: {claim.navigation}\n"
+                    f"Use this data to navigate directly if relevant"
+                    f"{nav_hint}\n"
                 )
             elif step.depends_on and session_data.get("_last_url"):
                 last_url = session_data["_last_url"]
@@ -313,10 +336,14 @@ def run_step(
                     f"Browser is currently at: {last_url}{title_hint}. "
                     f"Page state from the previous step is preserved — do NOT navigate away "
                     f"unless this is the wrong page. "
-                    f"Navigation hint if needed: {claim.navigation}\n"
+                    + (f"Navigation hint if needed: {step.navigation}\n" if step.navigation else "\n")
                 )
             else:
-                nav_context = f"Start by navigating to: {claim.navigation}\n"
+                nav_context = (
+                    f"Start by navigating to: {step.navigation}\n"
+                    if step.navigation else
+                    "Navigate to the appropriate page to begin verification.\n"
+                )
         else:
             current_url = session.current_url()
             nav_context = (
@@ -360,6 +387,7 @@ def run_step(
             run_id=run_id,
             setup_records=setup_records,
             fp_for_claim=fp_for_claim,
+            session_data=session_data,
         )
         # Prefer live browser URL (works for fingerprint replay + ReAct alike)
         live_url = session.current_url()
@@ -411,6 +439,7 @@ def _react_loop(
     run_id: str = "",
     setup_records: list[ActionRecord] | None = None,
     fp_for_claim: ClaimFingerprint | None = None,
+    session_data: dict[str, str] | None = None,
 ) -> ClaimStatus:
     # --- Tier 1: fingerprint replay (zero LLM calls on stable UI) ---
     # Claims with setup blocks: setup already ran via _run_setup(); only replay the ReAct actions.
@@ -418,10 +447,11 @@ def _react_loop(
     if fp_store and fp_for_claim and fp_for_claim.actions:
         console.print(f"    [dim cyan]⚡ trying fingerprint replay… [{_ts()}][/dim cyan]")
         replay_snap: dict[str, str] = snap if snap is not None else {}
-        status = _try_fingerprint_replay(claim, session, evidence, fp_for_claim, replay_snap)
+        status = _try_fingerprint_replay(claim, session, evidence, fp_for_claim, replay_snap, session_data)
         if snap is not None:
             snap.update(replay_snap)
         if status is not None:
+            evidence.set_fingerprint_status("hit")
             current_url = session.current_url()
             messages.append({
                 "role": "assistant",
@@ -432,6 +462,7 @@ def _react_loop(
             })
             console.print(f"    [dim cyan]⚡ replay succeeded — no LLM call [{_ts()}][/dim cyan]")
             return status
+        evidence.set_fingerprint_status("miss")
         console.print(f"    [dim yellow]replay failed → falling back to ReAct[/dim yellow]")
         claim.status = ClaimStatus.blocked
 
@@ -500,6 +531,8 @@ def _react_loop(
                 if fp_store and args.get("verdict") == "verified":
                     assertions = extract_assertions(args.get("reasoning", ""), last_snapshot)
                     action_records[-1].assertions = assertions
+                    # Replace dynamic session values (e.g. requisition_url) with {{key}} placeholders
+                    _templatize_actions(action_records, session_data or {})
                     fp = ClaimFingerprint(
                         claim_id=claim.id,
                         recorded_at=datetime.now(timezone.utc).isoformat(),
@@ -529,6 +562,7 @@ def _run_setup(
     session: BrowserSession,
     evidence: EvidenceCollector,
     fp: ClaimFingerprint | None = None,
+    navigation: str = "",
 ) -> tuple[list[str], list[ActionRecord]]:
     if not claim.setup and not claim.action:
         return [], []
@@ -539,8 +573,9 @@ def _run_setup(
     # Build an index of stored setup selectors by position for fast replay
     stored = fp.setup_records if fp else []
 
-    result = session.navigate(claim.navigation)
-    evidence.log_action(f"navigate({claim.navigation})", result)
+    nav_target = navigation or claim.navigation
+    result = session.navigate(nav_target)
+    evidence.log_action(f"navigate({nav_target})", result)
     log.append(result)
 
     for i, step in enumerate(claim.setup):

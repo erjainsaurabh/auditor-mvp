@@ -218,6 +218,72 @@ class BrowserSession:
                 self._last_selectors = []
                 continue
 
+        # Radio button strategy — must use check() not click() to fire change events
+        # that trigger conditional-field logic in frameworks like Ivalua.
+        # When multiple radios share the same name (e.g. two "Yes" groups on one page),
+        # prefer the first UNCHECKED one — the already-checked one is a no-op.
+        try:
+            radio_locs = page.get_by_role("radio", name=clean)
+            count = radio_locs.count()
+            if count > 0:
+                target = None
+                for idx in range(count):
+                    loc = radio_locs.nth(idx)
+                    try:
+                        if not loc.is_checked(timeout=500):
+                            target = loc
+                            break
+                    except Exception:
+                        pass
+                if target is None:
+                    target = radio_locs.first
+                target.check(timeout=2000)
+                page.wait_for_timeout(800)
+                print(f"           [click radio] checked radio '{clean}' (idx {idx if target else 0})")
+                return f"clicked '{element_description}' (radio)"
+        except Exception as e:
+            print(f"           [click radio] failed: {e}")
+
+        # JavaScript radio fallback — finds input[type=radio] by adjacent label text,
+        # prefers unchecked radios, sets checked and dispatches change event to trigger
+        # Ivalua conditional logic (e.g. showing conditional fields).
+        try:
+            js_desc = desc.replace("\\", "\\\\").replace('"', '\\"')
+            found = page.evaluate(f"""() => {{
+                const text = "{js_desc}";
+                // First pass: prefer unchecked radios with matching label
+                for (const radio of document.querySelectorAll('input[type="radio"]')) {{
+                    if (radio.checked) continue;
+                    const lbl = document.querySelector('label[for="' + radio.id + '"]')
+                        || radio.nextElementSibling;
+                    if (lbl && lbl.textContent.trim() === text) {{
+                        radio.checked = true;
+                        radio.dispatchEvent(new Event('change', {{bubbles: true}}));
+                        radio.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        radio.click();
+                        return true;
+                    }}
+                }}
+                // Second pass: fall back to any matching radio (already checked ones)
+                for (const radio of document.querySelectorAll('input[type="radio"]')) {{
+                    const lbl = document.querySelector('label[for="' + radio.id + '"]')
+                        || radio.nextElementSibling;
+                    if (lbl && lbl.textContent.trim() === text) {{
+                        radio.checked = true;
+                        radio.dispatchEvent(new Event('change', {{bubbles: true}}));
+                        radio.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        radio.click();
+                        return true;
+                    }}
+                }}
+                return false;
+            }}""")
+            if found:
+                page.wait_for_timeout(800)
+                return f"clicked '{element_description}' (radio-js)"
+        except Exception as e:
+            print(f"           [click radio-js] failed: {e}")
+
         # JavaScript click — works on CSS-hidden elements (e.g. hover dropdowns)
         try:
             found = page.evaluate(f"""() => {{
@@ -368,6 +434,47 @@ class BrowserSession:
                 print(f"           [fill_field ivalua] not found: {result}")
         except Exception as e:
             print(f"           [fill_field ivalua] failed: {e}")
+
+        # Strategy 0a: combobox by aria-label — handles Ivalua fields where the combobox
+        # element itself has role=combobox + aria-label (not wrapped in iv-autocompletion).
+        # click() focuses it, press_sequentially() triggers per-keystroke XHR like Agency/Division.
+        try:
+            loc = page.get_by_role("combobox", name=label).first
+            if loc.count() > 0:
+                print(f"           [fill_field combobox-aria] found combobox '{label}'")
+                # Clear any existing selection — Ivalua shows a "Delete the value." button
+                # when a value is already selected. Clicking it clears the chip/token before
+                # we type, preventing "EmergencyEmergency"-style doubling.
+                try:
+                    del_btn = loc.locator("xpath=following::button[contains(@title,'Delete') or contains(text(),'Delete')]").first
+                    if del_btn.count() == 0:
+                        # Try JS: find a delete button near this combobox
+                        page.evaluate(f"""() => {{
+                            const cb = document.querySelector('[aria-label="{label}"]') ||
+                                       document.querySelector('[name="{label}"]');
+                            if (!cb) return;
+                            const container = cb.closest('[data-iv-role="controlWrapper"]') || cb.parentElement;
+                            if (!container) return;
+                            const btn = container.querySelector('button[title*="Delete"], button[aria-label*="Delete"]');
+                            if (btn) btn.click();
+                        }}""")
+                        page.wait_for_timeout(300)
+                    else:
+                        del_btn.click(timeout=1000)
+                        page.wait_for_timeout(300)
+                except Exception:
+                    pass
+                loc.click(timeout=2000)
+                page.wait_for_timeout(200)
+                page.keyboard.press("Control+a")
+                page.keyboard.press("Backspace")
+                page.wait_for_timeout(100)
+                loc.press_sequentially(value, delay=80)
+                page.wait_for_timeout(3000)
+                self._last_selectors = self._extract_selectors(loc)
+                return f"filled '{label}' with '{value}' (combobox-aria)"
+        except Exception as e:
+            print(f"           [fill_field combobox-aria] failed: {e}")
 
         # Strategy 0b: Ivalua date range end field — find the first input[type=text]
         # that appears after a heading whose text starts with "to:" using a DOM TreeWalker.

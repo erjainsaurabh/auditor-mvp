@@ -45,7 +45,7 @@ class Claim(BaseModel):
     id: str
     description: str
     type: ClaimType
-    navigation: str
+    navigation: str = ""   # deprecated — use Step.navigation; kept for backward compat
     expected: str
     setup: list[SetupStep] = Field(default_factory=list)
     action: str | None = None
@@ -64,6 +64,7 @@ class OutputCapture(BaseModel):
 class Step(BaseModel):
     id: str
     goal: str
+    navigation: str = ""   # where the browser should be at the start of this step
     depends_on: list[str] = Field(default_factory=list)
     input: list[str] = Field(default_factory=list)        # session_data keys needed from prior steps
     output_capture: list[OutputCapture] = Field(default_factory=list)

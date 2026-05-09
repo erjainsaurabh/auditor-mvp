@@ -34,6 +34,7 @@ def write_report(flow_file: FlowFile, evidence_records: list[dict], run_id: str,
                     "description": c.description,
                     "type": c.type,
                     "status": c.status,
+                    "fingerprint_status": (ev_map.get(c.id) or {}).get("fingerprint_status", "none"),
                     "evidence": ev_map.get(c.id),
                 }
                 for c in step.claims
@@ -54,10 +55,22 @@ def write_report(flow_file: FlowFile, evidence_records: list[dict], run_id: str,
     report = {
         "run_id": run_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "summary": _summary(all_claims),
+        "summary": {
+            **_summary(all_claims),
+            "fingerprint_hits": sum(1 for e in evidence_records if e.get("fingerprint_status") == "hit"),
+            "fingerprint_misses": sum(1 for e in evidence_records if e.get("fingerprint_status") == "miss"),
+            "fingerprint_none": sum(1 for e in evidence_records if e.get("fingerprint_status") == "none"),
+        },
         "flows": flows_out,
     }
     output_path.write_text(json.dumps(report, indent=2, default=str))
+
+
+_FP_ICONS = {
+    "hit":  "[cyan]⚡hit[/cyan]",
+    "miss": "[yellow]⚡miss[/yellow]",
+    "none": "[dim]—[/dim]",
+}
 
 
 def print_summary(claims: list[Claim], evidence_records: list[dict], run_id: str) -> None:
@@ -73,17 +86,30 @@ def print_summary(claims: list[Claim], evidence_records: list[dict], run_id: str
         f"[dim]Unverifiable: {s['unverifiable']}[/dim]\n"
     )
 
+    fp_hits = sum(1 for e in evidence_records if e.get("fingerprint_status") == "hit")
+    fp_misses = sum(1 for e in evidence_records if e.get("fingerprint_status") == "miss")
+    fp_none = sum(1 for e in evidence_records if e.get("fingerprint_status") == "none")
+    console.print(
+        f"[bold]Fingerprint:[/bold] "
+        f"[cyan]⚡ hit: {fp_hits}[/cyan]  "
+        f"[yellow]⚡ miss: {fp_misses}[/yellow]  "
+        f"[dim]none: {fp_none}[/dim]\n"
+    )
+
     table = Table(show_header=True, header_style="bold")
     table.add_column("Sta…", width=4)
     table.add_column("ID", style="dim")
     table.add_column("Description")
     table.add_column("Confidence", width=10)
+    table.add_column("Fingerprint", width=10)
 
     ev_map = {e["claim_id"]: e for e in evidence_records}
     for c in claims:
         ev = ev_map.get(c.id, {})
         confidence = ev.get("confidence", "")
-        table.add_row(_ICONS[c.status], c.id, c.description, confidence)
+        fp_status = ev.get("fingerprint_status", "none")
+        fp_cell = _FP_ICONS.get(fp_status, "[dim]—[/dim]")
+        table.add_row(_ICONS[c.status], c.id, c.description, confidence, fp_cell)
 
     console.print(table)
 

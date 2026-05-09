@@ -14,6 +14,10 @@ class EvidenceCollector:
     _actions: list[str] = field(default_factory=list, init=False)
     _screenshots: list[str] = field(default_factory=list, init=False)
     _verdict: dict | None = field(default=None, init=False)
+    # "hit"  — fingerprint replayed successfully (zero LLM calls)
+    # "miss" — fingerprint attempted but failed; fell back to ReAct
+    # "none" — no fingerprint existed for this claim
+    _fingerprint_status: str = field(default="none", init=False)
 
     @property
     def claim_dir(self) -> Path:
@@ -30,6 +34,10 @@ class EvidenceCollector:
         self._screenshots.append(str(path))
         return str(path)
 
+    def set_fingerprint_status(self, status: str) -> None:
+        """status: 'hit' | 'miss' | 'none'"""
+        self._fingerprint_status = status
+
     def set_verdict(self, verdict: str, confidence: str, reasoning: str) -> None:
         self._verdict = {
             "verdict": verdict,
@@ -42,6 +50,7 @@ class EvidenceCollector:
         record = {
             "claim_id": self.claim_id,
             "run_id": self.run_id,
+            "fingerprint_status": self._fingerprint_status,
             "action_sequence": self._actions,
             "screenshots": self._screenshots,
             **(self._verdict or {"verdict": "blocked", "confidence": "low", "reasoning": "no verdict recorded"}),

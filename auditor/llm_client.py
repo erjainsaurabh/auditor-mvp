@@ -25,8 +25,8 @@ Interaction rules:
 - If test data is provided, use those exact values without modification.
 - Autocomplete workflow: fill_field("Requesting Agency", "Department of Homeless Services") → read_page → click("Department of Homeless Services") to pick from the suggestion list.
 - For date fields: use fill_field("(M/d/yyyy)", "6/1/2026") for the START date and fill_field("to", "5/31/2027") for the END date (the end date lives under the "to:" heading). NEVER click the calendar icon. After filling a date, move on immediately — the calendar dismisses automatically.
-- For browse-modal fields (e.g. "Procurement Method"): clicking the combobox opens a modal popup. After clicking the combobox, call read_page to confirm the modal is open (the page will show an iframe URL containing "ellipsis_browse" or "modal.aspx"). Then call click("Emergency") — the code will find the correct row in the modal. After clicking, call read_page and confirm the modal has closed and the combobox now shows the selected value. Do NOT press Escape — that cancels the modal without selecting.
-- For Yes/No radio questions: call click("Yes") or click("No") to select the answer. If there are multiple Yes/No questions on the page, click the exact text near the question. Do not use fill_field for Yes/No radios.
+- For dropdown/combobox fields like "Procurement Method": use fill_field("Procurement Method", "Emergency") DIRECTLY — do NOT click the label first. After fill_field, call read_page to see the suggestion list, then click the matching suggestion. This is the same pattern as Requesting Agency and Division.
+- For Yes/No radio questions: call click("Yes") or click("No") to select the answer. If there are multiple Yes/No questions on the page, call read_page first to identify the visible question, then click "Yes" or "No".
 """
 
 _TOOL_DEFINITIONS: list[dict[str, Any]] = [
