@@ -2,14 +2,14 @@ app:
   base_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
   login_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
   headless: false
-  slow_mo_ms: 500
+  slow_mo_ms: 0
   auth:
     username_field: "Email Address"
     password_field: "Password"
     submit: true
 
 llm:
-  reasoning_model: "claude-sonnet-4-6"
+  reasoning_model: "claude-haiku-4-5-20251001"
   fast_model: "claude-haiku-4-5-20251001"
   max_tokens: 4096
   cache_system_prompt: true
@@ -22,7 +22,7 @@ llm:
   # fast_model: "ollama/llama3"
 
 agent:
-  max_actions_per_claim: 30
+  max_actions_per_claim: 15
   max_retries_per_claim: 3
 
 evidence:

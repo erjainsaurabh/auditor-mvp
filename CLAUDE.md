@@ -4,6 +4,17 @@ Full framework specification is in `AUDITOR_AGENT_FRAMEWORK.md`. This file
 gives the session-start context needed to work on the code without re-reading
 the entire spec each time.
 
+## Task tracking — mandatory
+
+All work is tracked in `TODO.md`. At the start of every session:
+1. Read `TODO.md` to understand what is done, what is current, and what is pending.
+2. Before starting any implementation, confirm the task matches what is listed.
+3. When a task is completed, update `TODO.md` immediately — mark it `✓ done`
+   and move it to the Completed section.
+4. When a new task is identified (design decision, bug, gap), add it to `TODO.md`
+   before or immediately after the conversation that surfaces it.
+5. Never let `TODO.md` go stale — it is the single source of truth for project state.
+
 ---
 
 ## What this project is
@@ -40,7 +51,8 @@ hand-written YAML claims.
 auditor-mvp/
 ├── AUDITOR_AGENT_FRAMEWORK.md   # full framework spec
 ├── config.yaml                  # base_url, LLM model strings, agent limits
-├── claims.yaml                  # input: hand-written claims (MVP/V1.1)
+├── claims.yaml                  # what to verify — hand-written (MVP/V1.2), LLM-generated (V1.4+)
+├── fingerprints.yaml            # how to verify it — machine-maintained, created at runtime
 ├── run.py                       # entrypoint: python run.py claims.yaml
 │
 ├── auditor/
@@ -55,6 +67,18 @@ auditor-mvp/
 ├── evidence/            # created at runtime, gitignored
 └── report.json          # output, gitignored
 ```
+
+### Three-file ownership model
+
+```
+claims.yaml          → what to verify       (spec-level, stable, human/LLM authored)
+fingerprints.yaml    → how to verify it     (DOM-level, machine-maintained, evolves with UI)
+config.yaml          → where to run it      (environment: base_url, credentials)
+```
+
+`claims.yaml` and `fingerprints.yaml` are environment-agnostic — DOM structure
+is determined by the codebase, not the environment. Only `config.yaml` changes
+between dev / staging / prod.
 
 ---
 
@@ -186,28 +210,118 @@ evidence/
 
 ---
 
-## Current build phase: V1.1
+## Execution Fingerprint Layer
+
+On the first successful ReAct run for a claim, the agent records a fingerprint:
+the action sequence, the resolved DOM selectors, and the assertions that confirmed
+the verdict. On every subsequent run, the fingerprint is replayed deterministically
+before the ReAct loop is attempted.
+
+### Three execution tiers
+
+```
+Tier 1 — Primary selector (highest confidence, direct Playwright call, no LLM)
+    ↓ fails
+Tier 2 — Alternative selectors (tried in confidence order, no LLM)
+    ↓ all fail
+Tier 3 — Full ReAct loop → on success, update fingerprint with new primary
+```
+
+### Fingerprint structure
+
+```yaml
+claim_001:
+  recorded_at: "2026-05-07T..."
+  run_id: "run_b66f0053"
+  description: "Contract menu item is visible"   # metadata only — not executed
+  actions:
+    - tool: navigate
+      args: {target: "/"}
+    - tool: click
+      description: "Contracts"                   # original intent — metadata only
+      selectors:
+        - type: xpath
+          value: "//nav//button[normalize-space()='Contracts']"
+          successes: 12
+          failures: 0
+          confidence: 1.0
+        - type: aria
+          value: "button[name='Contracts']"
+          successes: 11
+          failures: 1
+          confidence: 0.92
+    - tool: read_page
+      assertions:
+        - aria_contains: {role: link, name: "Browse Financial Contract Change Requests"}
+          confidence: 1.0
+```
+
+### Confidence matrix
+
+`confidence = successes / (successes + failures)` per selector.
+
+- Selector works → `successes += 1`
+- Selector fails, fallback works → `failures += 1` on failed, `successes += 1` on fallback
+- All selectors fail → ReAct runs, new selector added as primary, old ones demoted
+
+A selector whose confidence drops below 0.7 is flagged as drift — the UI may
+have changed even if fallbacks are still catching it.
+
+### Selector extraction
+
+Happens in `tools.py` at action success time — zero extra LLM cost:
+- XPath: computed from the resolved element's DOM position
+- Aria: `aria-label` + `role` attribute if present
+- CSS: tag + stable structural attributes if available
+
+The original natural language description (`"Contracts"`) is kept as metadata
+in the fingerprint but is not a separate execution tier. It documents intent;
+the stored selectors do the actual work.
+
+---
+
+## Current build phase: V1.2
 
 ```
 MVP ✓   Manual YAML claims, flat claim list, single ReAct loop per claim
-V1.1 ←  Simple feature flows — ordered steps, shared context within a step
-V1.2    Session state + data handoff between steps
-V1.3    LLM claim extraction from pasted spec text
-V1.4    Word/PDF parsing feeding into LLM extraction
-V1.5    SaaS DOM simplification (Salesforce Lightning, ServiceNow)
+V1.1 ✓  Simple feature flows — ordered steps, shared context within a step
+V1.2 ✓  Session state + data handoff between steps
+V1.3 ←  Execution fingerprint layer — selector recording, confidence matrix, drift detection
+V1.4    LLM claim extraction from pasted spec text
+V1.5    Word/PDF parsing feeding into LLM extraction
+V1.6    SaaS DOM simplification (Salesforce Lightning, ServiceNow)
 V2.0    Full framework — two-level graph, HTML report, visual diffing, PostgreSQL
 ```
 
-### V1.1 scope
-- YAML gains `flows` → `steps` → `claims` hierarchy
-- Two-level graph: flow/step DAG at top level, claim DAG per step
-- Claims within a step share one continuous LLM conversation (no re-navigation)
-- `read_page` results pruned from message history when superseded (stale snapshots removed)
-- No session state or data handoff yet — steps are independent (V1.2)
+### V1.2 scope
+- Steps declare `input` (keys consumed from session) and `output_capture` (keys produced)
+- `output_capture` strategies: `current_url`, `page_title`, `url_segment:N`
+- URL/title captured from the last `read_page` result in message history at `verify_claim` time
+- Captured data passed into the next step's LLM context as navigation hints
+- Steps with `input` keys log their received session data at startup
+- Each step still starts a fresh LLM conversation (context not shared across steps)
 - No test data cleanup — manual for now
 
-### Still excluded (V1.2+)
-- Session state / data handoff between steps
+### Step schema (V1.2)
+
+```yaml
+- id: step_002
+  goal: "Open the first FCR record from the list"
+  depends_on: [step_001]
+  output_capture:
+    - key: record_url
+      strategy: current_url      # captured from last read_page at verify_claim time
+  claims: [...]
+
+- id: step_003
+  goal: "Verify the FCR record detail page displays key fields"
+  depends_on: [step_002]
+  input: [record_url]            # injected into LLM nav context at step start
+  claims: [...]
+```
+
+### Still excluded (V1.3+)
+- LLM claim extraction from spec text
 - Word/PDF spec parsing
 - PostgreSQL
 - HTML report

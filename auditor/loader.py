@@ -50,6 +50,7 @@ class Claim(BaseModel):
     setup: list[SetupStep] = Field(default_factory=list)
     action: str | None = None
     depends_on: list[str] = Field(default_factory=list)
+    data: dict[str, str] = Field(default_factory=dict)   # test data injected into LLM context
     status: ClaimStatus = ClaimStatus.not_started
     evidence: dict[str, Any] | None = None
     unverifiable_reason: str | None = None
@@ -77,6 +78,7 @@ class Step(BaseModel):
 class Flow(BaseModel):
     id: str
     description: str
+    depends_on: list[str] = Field(default_factory=list)  # flow IDs
     steps: list[Step] = Field(default_factory=list)
 
     @property
@@ -101,6 +103,13 @@ class FlowFile(BaseModel):
         return [c for f in self.flows for c in f.all_claims]
 
 
-def load_flows(path: str | Path) -> FlowFile:
-    raw = yaml.safe_load(Path(path).read_text())
-    return FlowFile.model_validate(raw)
+def load_flows(*paths: str | Path) -> FlowFile:
+    """Load and merge one or more YAML flow files."""
+    merged = FlowFile()
+    for path in paths:
+        raw = yaml.safe_load(Path(path).read_text())
+        ff = FlowFile.model_validate(raw)
+        if ff.config and not merged.config:
+            merged.config = ff.config
+        merged.flows.extend(ff.flows)
+    return merged

@@ -1,0 +1,945 @@
+claims:
+  req_001:
+    claim_id: req_001
+    recorded_at: '2026-05-08T22:03:24.658966+00:00'
+    run_id: run_17e34595
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Main navigation bar showing Requisition menu item
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The page structure clearly shows a "Main Menu" navigation containing
+          a "Requisition" button. The menu item is present in the top navigation bar
+          alongside other items like Vendors, Catalog, Sourcing, Contracts, etc. Visual
+          confirmation was captured in the screenshot.
+      selectors: []
+      assertions:
+      - Main Menu
+      - Requisition
+    setup_records: []
+  req_002:
+    claim_id: req_002
+    recorded_at: '2026-05-08T01:36:26.557846+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /en/ord/basket_browse
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Browse Requisitions page with Create Sourcing Requisition button
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: The Browse Requisitions page loaded successfully at /en/ord/basket_browse.
+          The page heading confirms it is titled "Browse Requisitions" and the main
+          content area contains a clearly visible "Create Sourcing Requisition" link/button,
+          exactly as expected by the claim.
+        verdict: verified
+      selectors: []
+      assertions:
+      - Browse Requisitions
+      - Create Sourcing Requisition
+    setup_records: []
+  req_003:
+    claim_id: req_003
+    recorded_at: '2026-05-08T01:36:35.081173+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: take_screenshot
+      args:
+        label: Browse Requisitions page showing all three buttons
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: 'The Browse Requisitions page at /en/ord/basket_browse clearly
+          shows all three expected elements in the main content area: "Browse Goods
+          Catalog", "Browse Master Agreements", and "Create Sourcing Requisition".
+          All are present as links/buttons alongside each other, fully matching the
+          expected outcome of the claim.'
+        verdict: verified
+      selectors: []
+      assertions: []
+    setup_records: []
+  req_004:
+    claim_id: req_004
+    recorded_at: '2026-05-08T01:36:53.265031+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /en/ord/basket_browse
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Browse Requisitions page loaded
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Create Sourcing Requisition
+      selectors:
+      - type: xpath
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
+        successes: 14
+        failures: 0
+      - type: text
+        value: Create Sourcing Requisition
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Create Requisition form opened
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: After navigating to /en/ord/basket_browse (Browse Requisitions
+          page) and clicking the 'Create Sourcing Requisition' button, the browser
+          navigated to /en/ord/basket_manage/?Create&ddlType=src. The page title changed
+          to 'Create Requisition' (confirmed by the H1 heading "Create Requisition")
+          and a 'Requisition Header' section (H2 heading) is clearly visible within
+          the Sourcing Requisition tab panel. The form contains all expected fields
+          including Status, Type, Label, Requesting Agency, Program, Contract Type,
+          and more. All expected outcome conditions are fully met.
+        verdict: verified
+      selectors: []
+      assertions:
+      - Create Requisition
+    setup_records: []
+  req_005:
+    claim_id: req_005
+    recorded_at: '2026-05-08T01:37:01.585387+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Status field showing Draft and disabled
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: 'On the open Create Requisition form, the page snapshot clearly
+          shows: (1) the Status combobox is marked as [disabled], confirming it is
+          read-only and cannot be edited, and (2) the text immediately adjacent to
+          the Status combobox reads ''Draft'', confirming the default value is ''Draft''.
+          The relevant snippet from the page structure is: `text: Status`, `combobox
+          "Status" [disabled]`, `text: Draft Type` — where ''Draft'' appears as the
+          displayed value next to the disabled Status field. Both conditions of the
+          claim are fully satisfied.'
+        verdict: verified
+      selectors: []
+      assertions:
+      - Status
+    setup_records: []
+  req_006:
+    claim_id: req_006
+    recorded_at: '2026-05-08T01:38:10.595430+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Type field showing Sourcing and disabled
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: 'On the open Create Requisition form, the page snapshot clearly
+          shows: (1) the Type combobox is marked as [disabled], confirming it is read-only
+          and cannot be edited, and (2) the text immediately adjacent to the Type
+          combobox reads ''Sourcing'', confirming the default value is ''Sourcing''.
+          The relevant snippet from the page structure is: `text: Draft Type`, `combobox
+          "Type" [disabled]`, `text: Sourcing Label *` — where ''Sourcing'' appears
+          as the displayed value next to the disabled Type field. Both conditions
+          of the claim are fully satisfied.'
+        verdict: verified
+      selectors: []
+      assertions:
+      - Type
+    setup_records: []
+  req_007:
+    claim_id: req_007
+    recorded_at: '2026-05-08T01:38:18.894325+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requestor field pre-filled with logged-in user
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: 'On the open Create Requisition form, the page snapshot clearly
+          shows: (1) the Requestor combobox is marked as [disabled], confirming it
+          is read-only, and (2) the text immediately adjacent to the Requestor combobox
+          reads ''DHS ACCOSTAFFADMINTWO'', which is a non-empty value representing
+          the currently logged-in user. The relevant snippet from the page is: `text:
+          Requestor`, `combobox "Requestor" [disabled]`, `text: DHS ACCOSTAFFADMINTWO
+          Requesting Agency *`. Additionally, the banner area shows the logged-in
+          user identifier as ''DHS A.'' (abbreviated), consistent with the pre-filled
+          Requestor value. Both conditions — pre-filled with a non-empty value and
+          read-only — are fully satisfied.'
+        verdict: verified
+      selectors: []
+      assertions:
+      - Requestor
+    setup_records: []
+  req_008:
+    claim_id: req_008
+    recorded_at: '2026-05-08T01:38:35.789905+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /en/ord/basket_browse
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Create Sourcing Requisition
+      selectors:
+      - type: xpath
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
+        successes: 14
+        failures: 0
+      - type: text
+        value: Create Sourcing Requisition
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Create Sourcing Requisition - Requisition Header with Label field
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: After navigating to /en/ord/basket_browse and clicking 'Create
+          Sourcing Requisition', the resulting form clearly shows a field labelled
+          'Label *' (displayed as 'Sourcing Label *') with an asterisk in the Requisition
+          Header section. The page also displays an informational message confirming
+          "Fields marked by an asterisk * are mandatory", confirming that Label is
+          indeed a mandatory field on the empty form.
+        verdict: verified
+      selectors: []
+      assertions:
+      - Fields marked by an asterisk * are mandatory
+    setup_records: []
+  req_009:
+    claim_id: req_009
+    recorded_at: '2026-05-08T01:38:44.596843+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Create Requisition - Requesting Agency mandatory dropdown field
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: On the open Create Requisition form, the Requisition Header section
+          contains a field labelled 'Requesting Agency *' (with asterisk indicating
+          it is mandatory). It is rendered as a combobox (dropdown), confirming the
+          claim. The page also explicitly states "Fields marked by an asterisk * are
+          mandatory", further validating that this is a required field.
+        verdict: verified
+      selectors: []
+      assertions:
+      - Fields marked by an asterisk * are mandatory
+    setup_records: []
+  req_010:
+    claim_id: req_010
+    recorded_at: '2026-05-08T01:38:54.734175+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: take_screenshot
+      args:
+        label: Create Requisition - Anticipated Contract Period start and end date
+          mandatory fields
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: On the open Create Requisition form, the Requisition Header section
+          contains two date fields under the 'Anticipated Contract Period' heading.
+          Both the start date (labeled '(M/d/yyyy) *') and the end date (labeled '(M/d/yyyy)
+          *', preceded by a 'to:' heading) carry asterisks, confirming they are both
+          mandatory fields. The page-level note states "Fields marked by an asterisk
+          * are mandatory", further validating this.
+        verdict: verified
+      selectors: []
+      assertions: []
+    setup_records: []
+  req_011:
+    claim_id: req_011
+    recorded_at: '2026-05-08T01:39:02.726274+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: take_screenshot
+      args:
+        label: Create Requisition - Executive Summary mandatory text area in Procurement
+          Description section
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: On the open Create Requisition form, the 'Procurement Description
+          and Executive Summary' section contains a text area (textbox "Executive
+          Summary") that is marked as mandatory with an asterisk (*). The label text
+          reads "This field cannot exceed the 4000 character limit *" and a standalone
+          "*" is also present adjacent to the field. The page-level note confirms
+          "Fields marked by an asterisk * are mandatory", validating that this text
+          area is a mandatory field on the empty form.
+        verdict: verified
+      selectors: []
+      assertions: []
+    setup_records: []
+  req_012:
+    claim_id: req_012
+    recorded_at: '2026-05-08T01:39:28.599207+00:00'
+    run_id: run_c1e356ce
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Save
+      selectors:
+      - type: xpath
+        value: //*[@id="proxyActionBar_x__cmdSave"]
+        successes: 14
+        failures: 0
+      - type: text
+        value: Save
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Save with no fields - validation errors for all five mandatory fields
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        confidence: high
+        reasoning: 'After clicking Save with no fields filled on the Create Requisition
+          form, an alert block appeared containing exactly five blocking error messages:
+          (1) ''Label must have a value'', (2) ''Requesting Agency must have a value'',
+          (3) ''must have a value (Expected date format: M/d/yyyy)'' for the start
+          date, (4) ''must have a value (Expected date format: M/d/yyyy)'' for the
+          end date, and (5) ''Executive Summary must have a value''. Inline error
+          messages also appeared adjacent to each corresponding field. The form was
+          not submitted — the URL remained on the Create Requisition page (basket_manage/?Create&ddlType=src),
+          confirming all five mandatory field validations triggered correctly.'
+        verdict: verified
+      selectors: []
+      assertions: []
+    setup_records: []
+  req_013:
+    claim_id: req_013
+    recorded_at: '2026-05-08T16:49:15.741658+00:00'
+    run_id: run_e150d97c
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /en/ord/basket_browse
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Create Sourcing Requisition
+      selectors:
+      - type: xpath
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
+        successes: 11
+        failures: 0
+      - type: text
+        value: Create Sourcing Requisition
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Form with empty fields - before Requesting Agency selection
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Full page view to confirm Division field absence
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The form was loaded with no Requesting Agency selected. A complete
+          page read and screenshots confirm that the Division field is not visible
+          on the empty Create Sourcing Requisition form. The visible fields include
+          Status, Draft Type, Sourcing Label, Requestor, Requesting Agency, Program,
+          Contract Type, and various other fields, but Division is notably absent.
+          This confirms the claim that the Division field is not visible before a
+          Requesting Agency is selected.
+      selectors: []
+      assertions: []
+    setup_records: []
+  req_014:
+    claim_id: req_014
+    recorded_at: '2026-05-08T17:49:48.638424+00:00'
+    run_id: run_d3667aba
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: clear_field
+      args:
+        field_label: Requesting Agency
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Requesting Agency
+        value: Department of Homeless Services
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
+        successes: 9
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: DEPARTMENT OF HOMELESS SERVICES
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_sact;071"]
+        successes: 9
+        failures: 0
+      - type: text
+        value: DEPARTMENT OF HOMELESS SERVICES
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Requesting Agency field was successfully filled with "Department
+          of Homeless Services" using the fill_field function. The field populated,
+          a dropdown suggestion appeared, and after clicking the matching suggestion,
+          the field retained the selected value "DEPARTMENT OF HOMELESS SERVICES"
+          as shown in the read_page output. The value is displayed below the Requesting
+          Agency combobox, confirming that the field correctly accepts and displays
+          the selected agency.
+      selectors: []
+      assertions:
+      - Department of Homeless Services
+      - DEPARTMENT OF HOMELESS SERVICES
+    setup_records: []
+  req_015:
+    claim_id: req_015
+    recorded_at: '2026-05-08T16:49:42.465989+00:00'
+    run_id: run_e150d97c
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Division field now visible and marked as mandatory after Requesting
+          Agency selection
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The page read confirms that after the Requesting Agency "Department
+          of Homeless Services" was selected, the Division field is now visible on
+          the form. The field is labeled "Division *" (with an asterisk), which indicates
+          it is a mandatory field. The page snapshot shows the combobox element labeled
+          "Division *" appearing in the form layout right after the Requesting Agency
+          field. This clearly demonstrates that the Division field appears as mandatory
+          once a Requesting Agency is selected, validating the claim entirely.
+      selectors: []
+      assertions:
+      - Department of Homeless Services
+      - Division *
+    setup_records: []
+  req_016:
+    claim_id: req_016
+    recorded_at: '2026-05-08T17:50:20.839904+00:00'
+    run_id: run_d3667aba
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: clear_field
+      args:
+        field_label: Division
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Division
+        value: Chief of Staff
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
+        successes: 9
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: CHIEF OF STAFF
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_ssact;4169"]
+        successes: 9
+        failures: 0
+      - type: text
+        value: CHIEF OF STAFF
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Division field was successfully filled with "Chief of Staff"
+          using the fill_field function. The field populated, a dropdown suggestion
+          appeared with "1 results" showing "CHIEF OF STAFF", and after clicking the
+          matching suggestion, the field retained the selected value. The read_page
+          output clearly shows "Division *" with the text "CHIEF OF STAFF" displayed
+          below the combobox, confirming the field successfully accepts and displays
+          the selected division value.
+      selectors: []
+      assertions:
+      - Chief of Staff
+      - CHIEF OF STAFF
+      - Division *
+    setup_records: []
+  req_017:
+    claim_id: req_017
+    recorded_at: '2026-05-08T22:03:56.544505+00:00'
+    run_id: run_17e34595
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: select_option
+      args:
+        field_label: Contract Type
+        option_value: General Contract (CT1)
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Contract Type successfully selected showing "General Contract (CT1)"
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Contract Type field successfully accepted the selection "General
+          Contract (CT1)" using select_option. The page read confirms the field displays
+          the selected value, and the form remained on the same Create Requisition
+          page throughout the interaction. The selection is clearly visible in both
+          the status message ("General Contract (CT1) added to selection") and the
+          form field itself.
+      selectors: []
+      assertions:
+      - General Contract (CT1)
+      - General Contract (CT1) added to selection
+    setup_records: []
+  req_018:
+    claim_id: req_018
+    recorded_at: '2026-05-08T16:51:18.119968+00:00'
+    run_id: run_e150d97c
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Funding Type field now visible and marked as mandatory after Contract
+          Type selection
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The page read confirms that the Funding Type field is now visible
+          on the Create Requisition form and is marked with an asterisk (*), indicating
+          it is mandatory. The field appears as a combobox element labeled "Funding
+          Type *" in the form layout, positioned after the Renewal Options field.
+          This field appears conditionally only after Contract Type = "General Contract
+          (CT1)" is selected, which matches the expected behavior described in the
+          claim. The read-only verification shows the field is present and properly
+          marked as mandatory, without any interaction required.
+      selectors: []
+      assertions:
+      - Funding Type *
+      - General Contract (CT1)
+    setup_records: []
+  req_019:
+    claim_id: req_019
+    recorded_at: '2026-05-08T18:12:08.388559+00:00'
+    run_id: run_ca6dd893
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Label
+        value: Test Requisition MVP
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
+        successes: 7
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Label field on the Create Requisition form successfully accepted
+          the value "Test Requisition MVP" from the test data. The read_page output
+          confirms the textbox labeled "Label *" now displays the exact value that
+          was entered. The form was already open with Requesting Agency (DEPARTMENT
+          OF HOMELESS SERVICES), Division (CHIEF OF STAFF), and Contract Type (General
+          Contract CT1) pre-filled as expected, and no navigation away from the form
+          occurred.
+      selectors: []
+      assertions:
+      - Test Requisition MVP
+      - Label *
+    setup_records: []
+  req_020:
+    claim_id: req_020
+    recorded_at: '2026-05-08T21:16:45.824379+00:00'
+    run_id: run_58d5faf5
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: (M/d/yyyy)
+        value: 6/1/2026
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
+        successes: 6
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: to
+        value: 5/31/2027
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
+        successes: 6
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Anticipated Contract Period dates filled successfully
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Both Anticipated Contract Period date fields were successfully
+          filled and are displaying the correct values: Start date shows 6/1/2026
+          and end date shows 5/31/2027. The page read_page output confirms both textbox
+          fields contain the exact values that were entered using fill_field. The
+          form state was preserved from the previous claim, and no navigation occurred.
+          This meets all the expected outcomes.'
+      selectors: []
+      assertions: []
+    setup_records: []
+  req_021:
+    claim_id: req_021
+    recorded_at: '2026-05-08T22:04:19.863127+00:00'
+    run_id: run_17e34595
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Funding Type
+        value: Expense
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selAtypeCodeFundType_search"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Expense
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Funding Type field successfully accepted the "Expense" value
+          from the test data. After filling the field with fill_field and clicking
+          the suggestion, the page now displays "Expense" as the selected value with
+          a "Delete the value" button, confirming the selection was accepted by the
+          form.
+      selectors: []
+      assertions:
+      - Expense
+      - Delete the value
+    setup_records: []
+  req_022:
+    claim_id: req_022
+    recorded_at: '2026-05-08T21:22:33.993272+00:00'
+    run_id: run_7d973588
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Executive Summary
+        value: Test procurement for auditor MVP verification
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskProcExeSum"]
+        successes: 5
+        failures: 0
+      - type: aria_label
+        value: Executive Summary
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Procurement Description / Executive Summary text area successfully
+          accepted the input "Test procurement for auditor MVP verification" and displays
+          it correctly in the text field. The page snapshot confirms the text is present
+          in the textbox.
+      selectors: []
+      assertions:
+      - Test procurement for auditor MVP verification
+    setup_records: []
+  req_023:
+    claim_id: req_023
+    recorded_at: '2026-05-08T22:04:48.933614+00:00'
+    run_id: run_17e34595
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Save
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Saving the fully filled requisition successfully assigned a unique
+          REQ number (REQ262338) which is displayed in the page title as ''Requisition:
+          REQ262338 - Test Requisition MVP (Draft)''. Both the ''Cancel requisition''
+          and ''Duplicate Req.'' buttons are visible on the page. The requisition
+          was successfully saved with all the required information, and the system
+          automatically generated a unique requisition identifier.'
+      selectors: []
+      assertions: []
+    setup_records: []

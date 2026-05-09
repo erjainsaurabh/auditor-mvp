@@ -7,11 +7,37 @@ from auditor.loader import Claim, ClaimStatus, Flow, Step, StepStatus
 
 def build_step_graph(flows: list[Flow]) -> nx.DiGraph:
     g = nx.DiGraph()
+    flow_map = {f.id: f for f in flows}
+
+    # Add all nodes and explicit step-level dependencies
     for flow in flows:
         for step in flow.steps:
             g.add_node(step.id, step=step)
             for dep in step.depends_on:
                 g.add_edge(dep, step.id)
+
+    # Wire flow-level depends_on:
+    # last steps of dep_flow → first steps of current flow
+    for flow in flows:
+        if not flow.depends_on:
+            continue
+        cur_step_ids = {s.id for s in flow.steps}
+        # First steps: steps whose depends_on has no overlap with this flow's steps
+        first_steps = [s.id for s in flow.steps if not (set(s.depends_on) & cur_step_ids)]
+
+        for dep_flow_id in flow.depends_on:
+            dep_flow = flow_map.get(dep_flow_id)
+            if not dep_flow:
+                continue
+            dep_step_ids = {s.id for s in dep_flow.steps}
+            # Last steps: not listed as a dependency by any other step in the dep flow
+            referenced = {d for s in dep_flow.steps for d in s.depends_on} & dep_step_ids
+            last_steps = [s.id for s in dep_flow.steps if s.id not in referenced]
+
+            for last in last_steps:
+                for first in first_steps:
+                    g.add_edge(last, first)
+
     return g
 
 

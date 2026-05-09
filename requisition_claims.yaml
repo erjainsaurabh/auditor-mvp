@@ -1,0 +1,366 @@
+config:
+  base_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
+
+flows:
+  - id: flow_requisition_creation
+    description: "Create a new Sourcing Requisition end-to-end"
+    depends_on: [flow_login]
+    steps:
+
+      # ── Step 1: Navigation ────────────────────────────────────────────────
+      - id: step_001
+        goal: "Verify Sourcing Requisition creation is accessible from the main navigation"
+        claims:
+          - id: req_001
+            description: "Requisition menu item is visible in the main navigation"
+            type: existence
+            navigation: "/"
+            expected: "a menu item labelled 'Requisition' is visible in the top navigation bar"
+
+          - id: req_002
+            description: "Browse Requisitions page loads from the Requisition menu"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: "the Browse Requisitions page loads showing a 'Create Sourcing Requisition' button"
+            depends_on: [req_001]
+
+          - id: req_003
+            description: "'Create Sourcing Requisition' button is present on Browse Requisitions"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: "a button labelled 'Create Sourcing Requisition' is visible on the page alongside 'Browse Goods Catalog' and 'Browse Master Agreements'"
+            depends_on: [req_002]
+
+      # ── Step 2: Form default state ────────────────────────────────────────
+      # First claim opens the form; req_005–007 continue from the same form.
+      - id: step_002
+        goal: "Verify the Create Requisition form opens with correct default values"
+        depends_on: [step_001]
+        claims:
+          - id: req_004
+            description: "Create Requisition form opens after clicking the button"
+            type: transition
+            navigation: "/en/ord/basket_browse"
+            expected: "navigate to Browse Requisitions, click 'Create Sourcing Requisition', then confirm the page title changes to 'Create Requisition' and a Requisition Header section is visible"
+
+          - id: req_005
+            description: "Status defaults to Draft and is read-only"
+            type: value
+            navigation: "/en/ord/basket_browse"
+            expected: "on the open Create Requisition form, confirm the Status field shows 'Draft' and cannot be edited"
+            depends_on: [req_004]
+
+          - id: req_006
+            description: "Type defaults to Sourcing and is read-only"
+            type: value
+            navigation: "/en/ord/basket_browse"
+            expected: "on the open Create Requisition form, confirm the Type field shows 'Sourcing' and cannot be edited"
+            depends_on: [req_004]
+
+          - id: req_007
+            description: "Requestor is pre-filled with the logged-in user"
+            type: value
+            navigation: "/en/ord/basket_browse"
+            expected: "on the open Create Requisition form, confirm the Requestor field is pre-filled with a non-empty value (the currently logged-in user)"
+            depends_on: [req_004]
+
+      # ── Step 3: Mandatory fields on empty form ───────────────────────────
+      # Claims share the same form — first claim opens it, rest continue from current state.
+      # No setup needed; the ReAct loop navigates on the first claim and carries through.
+      - id: step_003
+        goal: "Verify the five mandatory fields on the empty Create Requisition form and validation behaviour"
+        depends_on: [step_002]
+        claims:
+          - id: req_008
+            description: "Label is a mandatory field on the empty form"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: "navigate to Browse Requisitions, click 'Create Sourcing Requisition', then confirm a field labelled 'Label' marked with an asterisk (*) is visible in the Requisition Header section"
+
+          - id: req_009
+            description: "Requesting Agency is a mandatory field on the empty form"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: "on the open Create Requisition form, confirm a field labelled 'Requesting Agency' marked with an asterisk (*) is visible as a dropdown"
+            depends_on: [req_008]
+
+          - id: req_010
+            description: "Anticipated Contract Period start and end dates are mandatory on the empty form"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: "on the open Create Requisition form, confirm two date fields for 'Anticipated Contract Period' are both marked as mandatory (asterisk)"
+            depends_on: [req_008]
+
+          - id: req_011
+            description: "Procurement Description / Executive Summary text area is mandatory on the empty form"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: "on the open Create Requisition form, confirm a mandatory text area in the 'Procurement Description and Executive Summary' section is visible on the right panel"
+            depends_on: [req_008]
+
+          - id: req_012
+            description: "Clicking Save with no fields filled shows validation errors for all five mandatory fields"
+            type: constraint
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the open Create Requisition form, click the Save button without filling any fields.
+              Confirm validation error messages appear for: 'Label must have a value',
+              'Requesting Agency must have a value', two date errors
+              'must have a value (Expected date format: M/d/yyyy)', and
+              'Executive Summary must have a value'. The form must not be submitted.
+            depends_on: [req_008]
+
+      # ── Step 4: Cascading conditional fields ─────────────────────────────────
+      # Each action claim: perform the selection AND verify it was accepted.
+      # Each check claim: read page and confirm the conditional field appeared.
+      # State carries forward across all claims in the step (same form, no navigation).
+      - id: step_004
+        goal: "Verify cascading conditional fields: Agency → Division → Contract Type → Funding Type"
+        depends_on: [step_003]
+        claims:
+          - id: req_013
+            description: "Division field is not visible before Requesting Agency is selected"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: "navigate to Browse Requisitions, click 'Create Sourcing Requisition', then confirm no 'Division' field is visible on the empty form before any Requesting Agency is chosen"
+
+          - id: req_014
+            description: "Requesting Agency can be selected and shows the chosen value"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the open Create Requisition form, fill the Requesting Agency field using
+              fill_field with the agency name from test data. After typing, results appear in
+              a dropdown — click the matching suggestion to select it. Then call read_page and
+              confirm the Requesting Agency field shows the selected agency (not empty).
+              Do not interact with Division or any other field.
+            data:
+              requesting_agency: "Department of Homeless Services"
+            depends_on: [req_013]
+
+          - id: req_015
+            description: "Division field appears as mandatory after Requesting Agency is selected"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the open Create Requisition form (Requesting Agency already selected — do NOT
+              navigate away), call read_page and confirm a field labelled 'Division' marked with
+              an asterisk (*) is now visible. This is a read-only check — do not fill anything.
+            depends_on: [req_014]
+
+          - id: req_016
+            description: "Division field accepts a selection"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the open Create Requisition form (Requesting Agency already selected — do NOT
+              navigate away), fill the Division field using fill_field with the division name from
+              test data. After typing, results appear in a dropdown — click the matching suggestion.
+              Then call read_page and confirm the Division field shows the selected division value.
+            data:
+              division: "Chief of Staff"
+            depends_on: [req_015]
+
+          - id: req_017
+            description: "Contract Type can be selected"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the open Create Requisition form (Agency and Division already selected — do NOT
+              navigate away), select Contract Type = "General Contract (CT1)" using select_option
+              or fill_field. Then call read_page and confirm the Contract Type field shows the
+              selected value.
+            data:
+              contract_type: "General Contract (CT1)"
+            depends_on: [req_016]
+
+          - id: req_018
+            description: "Funding Type field appears as mandatory after Contract Type = General Contract (CT1) is selected"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the open Create Requisition form (Contract Type already set to General Contract
+              (CT1) — do NOT navigate away), call read_page and confirm a mandatory 'Funding Type'
+              field (marked with asterisk) is now visible. This is a read-only check — do not
+              fill anything. Funding Type is hidden until Contract Type = General Contract (CT1).
+            depends_on: [req_017]
+
+      # ── Step 5: Fill remaining fields on the open form and save ─────────────
+      # Continues directly from step_004 — the form already has Agency, Division,
+      # and Contract Type filled. Only Label, dates, Funding Type, and Description
+      # remain before saving.
+      - id: step_005
+        goal: "Fill remaining mandatory fields on the open form and save, verify REQ number assigned"
+        depends_on: [step_004]
+        output_capture:
+          - key: requisition_url
+            strategy: current_url
+          - key: requisition_title
+            strategy: page_title
+        claims:
+          - id: req_019
+            description: "Label field accepts a value on the open Create Requisition form"
+            type: behavioral
+            navigation: "/en/ord/basket_manage"
+            expected: >
+              the Create Requisition form is already open from step_004 with Requesting Agency,
+              Division, and Contract Type already filled — do NOT navigate away or open a new form.
+              Fill the Label field with the label from test data. Call read_page and confirm
+              the Label field shows the entered value.
+            data:
+              label: "Test Requisition MVP"
+
+          - id: req_020
+            description: "Anticipated Contract Period dates are filled"
+            type: behavioral
+            navigation: "/en/ord/basket_manage"
+            expected: >
+              on the open Create Requisition form (do NOT navigate away), fill both date fields:
+              call fill_field("(M/d/yyyy)", "6/1/2026") for the start date, then call
+              fill_field("to", "5/31/2027") for the end date (the end date is under the "to:"
+              heading). Do NOT click the calendar icon or open a date picker.
+              Call read_page and confirm both date inputs show date values.
+            data:
+              contract_period_start: "6/1/2026"
+              contract_period_end: "5/31/2027"
+            depends_on: [req_019]
+
+          - id: req_021
+            description: "Funding Type field accepts a selection"
+            type: behavioral
+            navigation: "/en/ord/basket_manage"
+            expected: >
+              on the open Create Requisition form (do NOT navigate away), fill the Funding Type
+              field using fill_field with the funding_type value from test data. After fill_field,
+              call read_page to see the suggestion list, then click the matching suggestion.
+              Confirm the Funding Type field shows the selected value.
+            data:
+              funding_type: "Expense"
+            depends_on: [req_020]
+
+          - id: req_022
+            description: "Procurement Description text area accepts input"
+            type: behavioral
+            navigation: "/en/ord/basket_manage"
+            expected: >
+              on the open Create Requisition form (do NOT navigate away), fill the Procurement
+              Description / Executive Summary text area with the description from test data.
+              Call read_page and confirm the text area shows the entered text.
+            data:
+              procurement_description: "Test procurement for auditor MVP verification"
+            depends_on: [req_021]
+
+          - id: req_023
+            description: "Saving a fully filled requisition assigns a unique REQ number in the page title"
+            type: transition
+            navigation: "/en/ord/basket_manage"
+            expected: >
+              on the open Create Requisition form with all fields already filled (do NOT navigate
+              away), click the Save button. Confirm the page title changes to
+              'Requisition: REQxxxxxx - <label> (Draft)' where REQxxxxxx is a unique requisition
+              number, and that 'Cancel requisition' and 'Duplicate Req.' buttons are visible.
+            depends_on: [req_022]
+
+      # ── Step 6: Procurement Method Questionnaire ─────────────────────────
+      # req_027: click PMQ tab, verify section visible
+      # req_029: verify Procurement Method combobox exists
+      # req_030: select Emergency — triggers three conditional questions
+      # req_031: answer danger question = Yes
+      # req_032: select Vendor via typeahead (search "yard")
+      # req_033: answer accelerated question = Yes
+      # req_034: save — triggers "Change Procurement Method" button
+      # req_035: verify Change Procurement Method button visible
+      - id: step_006
+        goal: "Verify PMQ section, select Emergency procurement method, answer all conditional questions, save"
+        depends_on: [step_005]
+        input: [requisition_url]
+        claims:
+          - id: req_027
+            description: "Procurement Method Questionnaire section is visible on the saved requisition"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              the saved requisition page is already open (do NOT navigate away). Click the
+              'Procurement Method' tab in the left panel navigation to open the PMQ section.
+              Confirm a 'Procurement Method Questionnaire' section is visible containing
+              an Estimated Total Cost field and a PM Req field showing the requisition number.
+
+          - id: req_029
+            description: "Procurement Method combobox exists in the PMQ section"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the PMQ tab (do NOT navigate away), call read_page and confirm a
+              'Procurement Method' combobox or dropdown field is visible in the
+              'Select the Procurement Method Below' sub-section.
+            depends_on: [req_027]
+
+          - id: req_030
+            description: "Selecting Emergency as Procurement Method triggers three conditional questions"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the PMQ tab (do NOT navigate away), the Procurement Method combobox is visible.
+              Click the combobox labelled 'Procurement Method' to open the browse modal.
+              Call read_page — the modal should appear (an iframe with 'ellipsis_browse' in URL).
+              Then call click('Emergency') to select the Emergency row in the modal.
+              Call read_page and confirm the modal has closed and the Procurement Method
+              combobox now shows 'Emergency' as the selected value.
+            data:
+              procurement_method: "Emergency"
+            depends_on: [req_029]
+
+          - id: req_031
+            description: "Answer Yes to the emergency danger question"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the PMQ tab (do NOT navigate away), a mandatory Yes/No question is visible:
+              'Was an Emergency procurement declared due to unforeseen danger to life, safety,
+              property, or a necessary service?' Select 'Yes' for this question.
+              Call read_page and confirm 'Yes' is selected.
+            depends_on: [req_030]
+
+          - id: req_032
+            description: "Select the Vendor using typeahead search"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the PMQ tab (do NOT navigate away), a 'Select the Vendor' field is visible.
+              Fill it using fill_field with the vendor search term from test data. After
+              fill_field, call read_page to see suggestions, then click the matching vendor.
+              Confirm the Vendor field shows the selected vendor.
+            data:
+              vendor_search: "yard"
+            depends_on: [req_031]
+
+          - id: req_033
+            description: "Answer Yes to the accelerated procurement question"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the PMQ tab (do NOT navigate away), a Yes/No question is visible asking
+              whether this is an accelerated procurement for commodities that must be obtained
+              quickly due to significant shortages and/or short-term price fluctuations in
+              markets such as chemicals, energy, food, metals (ferrous and non-ferrous), paper
+              and plastics. Select 'Yes' for this question. Call read_page and confirm 'Yes'
+              is selected.
+            depends_on: [req_032]
+
+          - id: req_034
+            description: "Save the PMQ form"
+            type: behavioral
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              on the PMQ tab with all questions answered (do NOT navigate away), click the
+              Save button. Call read_page and confirm the page reloads without validation errors.
+            depends_on: [req_033]
+
+          - id: req_035
+            description: "'Change Procurement Method' button is visible after saving the PMQ"
+            type: existence
+            navigation: "/en/ord/basket_browse"
+            expected: >
+              after saving the PMQ (do NOT navigate away), call read_page and confirm a
+              'Change Procurement Method' button is visible on the page.
+            depends_on: [req_034]

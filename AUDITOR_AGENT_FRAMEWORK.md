@@ -511,6 +511,152 @@ Semantic: {
 
 ---
 
+## Execution Fingerprint Layer
+
+### Purpose
+
+Eliminate LLM cost on repeat runs for stable UI. The first run of a claim pays
+the full ReAct cost and records a fingerprint — the exact selectors and
+assertions that produced the verdict. Every subsequent run replays the
+fingerprint deterministically. Only when the fingerprint fails (UI has changed)
+does the ReAct loop engage.
+
+### Three-Tier Execution Model
+
+```
+Tier 1 — Primary selector
+  Try the highest-confidence stored selector directly via Playwright.
+  No LLM. Direct DOM lookup.
+      ↓ fails
+Tier 2 — Alternative selectors
+  Try remaining stored selectors in confidence order.
+  No LLM. Direct DOM lookup.
+      ↓ all fail
+Tier 3 — Full ReAct loop
+  LLM-driven. On success:
+    → extract new selectors from the successful interaction
+    → write new primary to fingerprint
+    → demote failed selectors (confidence adjusted)
+```
+
+Cost profile: first run pays full ReAct cost. Every subsequent run on a stable
+UI costs nothing. Only regressions pay again.
+
+### Fingerprint Schema
+
+```yaml
+claim_001:
+  recorded_at: "2026-05-07T..."
+  run_id: "run_b66f0053"
+  description: "Contract menu item is visible in the main navigation"   # from claim, metadata only
+  actions:
+    - tool: navigate
+      args: {target: "/"}
+
+    - tool: click
+      description: "Contracts"                 # original natural language — metadata, not executed
+      selectors:
+        - type: xpath
+          value: "//nav//button[normalize-space()='Contracts']"
+          successes: 12
+          failures: 0
+          confidence: 1.0
+        - type: aria
+          value: "button[name='Contracts']"
+          successes: 11
+          failures: 1
+          confidence: 0.92
+        - type: css
+          value: "nav li button"
+          successes: 10
+          failures: 2
+          confidence: 0.83
+
+    - tool: read_page
+      assertions:
+        - aria_contains: {role: link, name: "Browse Financial Contract Change Requests"}
+          successes: 12
+          failures: 0
+          confidence: 1.0
+```
+
+### Selector Extraction
+
+When any action succeeds in `tools.py`, the resolved `ElementHandle` is available.
+Extract selector representations at that point — zero extra LLM cost:
+
+```python
+def _extract_selectors(element) -> list[dict]:
+    xpath = element.evaluate("""el => {
+        const parts = [];
+        let node = el;
+        while (node && node.nodeType === 1) {
+            let idx = 1, sib = node.previousSibling;
+            while (sib) { if (sib.nodeType === 1 && sib.tagName === node.tagName) idx++; sib = sib.previousSibling; }
+            parts.unshift(node.tagName.toLowerCase() + (idx > 1 ? `[${idx}]` : ''));
+            node = node.parentNode;
+        }
+        return '/' + parts.join('/');
+    }""")
+    selectors = [{"type": "xpath", "value": xpath, "successes": 1, "failures": 0}]
+
+    aria_label = element.get_attribute("aria-label")
+    role = element.evaluate("el => el.getAttribute('role') || el.tagName.toLowerCase()")
+    if aria_label:
+        selectors.append({"type": "aria", "value": f"{role}[name='{aria_label}']",
+                          "successes": 1, "failures": 0})
+    return selectors
+```
+
+### Confidence Matrix
+
+`confidence = successes / (successes + failures)` per selector.
+
+On each replay run:
+- Selector worked → `successes += 1`
+- Selector failed, fallback worked → `failures += 1` on failed selector, `successes += 1` on fallback
+- All selectors failed → ReAct runs, new primary added with `successes: 1, failures: 0`; stale selectors marked `deprecated: true`
+
+**Drift detection is free**: a selector whose confidence drops from 1.0 to 0.6
+over 10 runs is signaling a UI change even if fallbacks are catching it.
+This surfaces as a warning before failures escalate.
+
+### File Separation
+
+```
+claims.yaml          → what to verify       (spec-level, human/LLM authored, stable)
+fingerprints.yaml    → how to verify it     (DOM-level, machine maintained, evolves)
+config.yaml          → where to run it      (environment: base_url, auth credentials)
+```
+
+`claims.yaml` and `fingerprints.yaml` travel together with the codebase.
+`config.yaml` is the only thing that changes per environment.
+
+**Environment-agnostic**: XPath and aria selectors reflect DOM structure, which
+is determined by the codebase — not the environment. The same fingerprint is
+valid across dev, staging, and prod as long as the same build is deployed.
+The first prod run after a staging fingerprint was recorded either confirms the
+selectors hold (build is identical) or catches a regression introduced during
+promotion.
+
+### When Fingerprints Are Written
+
+A fingerprint is created (or updated) only on successful ReAct verification.
+Failed or blocked claims do not produce fingerprints — there is nothing
+reliable to record from an unsuccessful run.
+
+### Technical Stack
+
+| Component | Technology | Notes |
+|---|---|---|
+| Fingerprint storage | `fingerprints.yaml` | Co-located with `claims.yaml`, machine-maintained |
+| Selector extraction | Playwright `ElementHandle.evaluate()` | Zero LLM cost, runs on action success |
+| Replay execution | Playwright locators | Direct selector call, no LLM |
+| Confidence tracking | Python (in-memory + yaml write) | Updated after every run |
+| Drift detection | Threshold on confidence drop | Warn when confidence < 0.7 |
+
+---
+
 ## Layer 4: ReAct Loop (Core Agent Engine)
 
 ### Purpose
@@ -1051,6 +1197,7 @@ AWS Bedrock, verify current caching support before relying on it for cost estima
 
 | Lever | Typical saving | When to apply |
 |---|---|---|
+| Fingerprint replay (no LLM on stable UI) | 90-100% per claim | After first successful run |
 | Prompt caching | 30-40% | Always — enable from day one |
 | Model routing (Haiku for simple tasks) | 20-30% | Phase 1 onwards |
 | DOM compression before LLM | 50-80% token reduction | Always |
@@ -1219,19 +1366,28 @@ V1.2    Session state + data handoff
 
   │
   ▼
-V1.3    LLM claim extraction
+V1.3    Execution fingerprint layer
+        fingerprints.yaml recorded on first successful ReAct run per claim
+        Subsequent runs replay selectors deterministically — no LLM cost
+        Three tiers: primary selector → alternatives → ReAct fallback
+        Confidence matrix per selector; drift detection when confidence drops
+        ReAct updates fingerprint on UI change
+
+  │
+  ▼
+V1.4    LLM claim extraction
         Paste spec text → LLM generates claims.yaml
         Manual writing replaced, everything else stays identical
 
   │
   ▼
-V1.4    Word doc + PDF parsing
+V1.5    Word doc + PDF parsing
         python-docx / pdfplumber feeds into LLM extraction
         Two-pass: flows first, then claims per step
 
   │
   ▼
-V1.5    SaaS DOM simplification
+V1.6    SaaS DOM simplification
         Platform-specific semantic extractors (Salesforce Lightning, ServiceNow)
         Replaces generic DOM extraction in tools.py
 
