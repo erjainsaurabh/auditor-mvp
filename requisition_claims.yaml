@@ -18,15 +18,15 @@ flows:
             expected: "a menu item labelled 'Requisition' is visible in the top navigation bar"
 
           - id: req_002
-            description: "Browse Requisitions page loads from the Requisition menu"
+            description: "Clicking the Requisition menu item opens a dropdown with a Browse Requisitions link"
             type: behavioral
-            expected: "the Browse Requisitions page loads showing a 'Create Sourcing Requisition' button"
+            expected: "clicking the Requisition menu item opens a dropdown showing a 'Browse Requisitions' link"
             depends_on: [req_001]
 
           - id: req_003
-            description: "'Create Sourcing Requisition' button is present on Browse Requisitions"
+            description: "'Create Sourcing Requisition' button is present on the Browse Requisitions page"
             type: existence
-            expected: "a button labelled 'Create Sourcing Requisition' is visible on the page alongside 'Browse Goods Catalog' and 'Browse Master Agreements'"
+            expected: "the Browse Requisitions page shows 'Create Sourcing Requisition', 'Browse Goods Catalog', and 'Browse Master Agreements' as navigation options"
             depends_on: [req_002]
 
       # ── Step 2: Form default state ────────────────────────────────────────
@@ -39,7 +39,7 @@ flows:
           - id: req_004
             description: "Create Requisition form opens after clicking the button"
             type: transition
-            expected: "navigate to Browse Requisitions, click 'Create Sourcing Requisition', then confirm the page title changes to 'Create Requisition' and a Requisition Header section is visible"
+            expected: "clicking 'Create Sourcing Requisition' opens a form with the page title 'Create Requisition' and a Requisition Header section visible"
 
           - id: req_005
             description: "Status defaults to Draft and is read-only"
@@ -68,7 +68,7 @@ flows:
           - id: req_008
             description: "Label is a mandatory field on the empty form"
             type: existence
-            expected: "navigate to Browse Requisitions, click 'Create Sourcing Requisition', then confirm a field labelled 'Label' marked with an asterisk (*) is visible in the Requisition Header section"
+            expected: "on the Create Requisition form, a field labelled 'Label' marked with an asterisk (*) is visible in the Requisition Header section"
 
           - id: req_009
             description: "Requesting Agency is a mandatory field on the empty form"
@@ -92,11 +92,10 @@ flows:
             description: "Clicking Save with no fields filled shows validation errors for all five mandatory fields"
             type: constraint
             expected: >
-              on the open Create Requisition form, click the Save button without filling any fields.
-              Confirm validation error messages appear for: 'Label must have a value',
+              saving the empty form triggers validation errors for: 'Label must have a value',
               'Requesting Agency must have a value', two date errors
               'must have a value (Expected date format: M/d/yyyy)', and
-              'Executive Summary must have a value'. The form must not be submitted.
+              'Executive Summary must have a value'. The form is not submitted.
             depends_on: [req_008]
 
       # ── Step 4: Cascading conditional fields ─────────────────────────────────
@@ -108,17 +107,12 @@ flows:
           - id: req_013
             description: "Division field is not visible before Requesting Agency is selected"
             type: existence
-            expected: "navigate to Browse Requisitions, click 'Create Sourcing Requisition', then confirm no 'Division' field is visible on the empty form before any Requesting Agency is chosen"
+            expected: "on the empty Create Requisition form, no 'Division' field is visible before any Requesting Agency is chosen"
 
           - id: req_014
             description: "Requesting Agency can be selected and shows the chosen value"
             type: behavioral
-            expected: >
-              on the open Create Requisition form, fill the Requesting Agency field using
-              fill_field with the agency name from test data. After typing, results appear in
-              a dropdown — click the matching suggestion to select it. Then call read_page and
-              confirm the Requesting Agency field shows the selected agency (not empty).
-              Do not interact with Division or any other field.
+            expected: "the Requesting Agency field shows the selected agency name as a non-empty value"
             data:
               requesting_agency: "{{requesting_agency}}"
             depends_on: [req_013]
@@ -126,20 +120,13 @@ flows:
           - id: req_015
             description: "Division field appears as mandatory after Requesting Agency is selected"
             type: existence
-            expected: >
-              on the open Create Requisition form (Requesting Agency already selected — do NOT
-              navigate away), call read_page and confirm a field labelled 'Division' marked with
-              an asterisk (*) is now visible. This is a read-only check — do not fill anything.
+            expected: "a field labelled 'Division' marked with an asterisk (*) is visible on the form"
             depends_on: [req_014]
 
           - id: req_016
             description: "Division field accepts a selection"
             type: behavioral
-            expected: >
-              on the open Create Requisition form (Requesting Agency already selected — do NOT
-              navigate away), fill the Division field using fill_field with the division name from
-              test data. After typing, results appear in a dropdown — click the matching suggestion.
-              Then call read_page and confirm the Division field shows the selected division value.
+            expected: "the Division field shows the selected division value"
             data:
               division: "{{division}}"
             depends_on: [req_015]
@@ -147,11 +134,7 @@ flows:
           - id: req_017
             description: "Contract Type can be selected"
             type: behavioral
-            expected: >
-              on the open Create Requisition form (Agency and Division already selected — do NOT
-              navigate away), select Contract Type = "General Contract (CT1)" using select_option
-              or fill_field. Then call read_page and confirm the Contract Type field shows the
-              selected value.
+            expected: "the Contract Type field shows the selected contract type"
             data:
               contract_type: "{{contract_type}}"
             depends_on: [req_016]
@@ -159,11 +142,7 @@ flows:
           - id: req_018
             description: "Funding Type field appears as mandatory after Contract Type = General Contract (CT1) is selected"
             type: existence
-            expected: >
-              on the open Create Requisition form (Contract Type already set to General Contract
-              (CT1) — do NOT navigate away), call read_page and confirm a mandatory 'Funding Type'
-              field (marked with asterisk) is now visible. This is a read-only check — do not
-              fill anything. Funding Type is hidden until Contract Type = General Contract (CT1).
+            expected: "a 'Funding Type' field marked with an asterisk (*) is visible after Contract Type is set to General Contract (CT1)"
             depends_on: [req_017]
 
       # ── Step 5: Fill remaining fields and save ─────────────────────────────
@@ -180,23 +159,14 @@ flows:
           - id: req_019
             description: "Label field accepts a value on the open Create Requisition form"
             type: behavioral
-            expected: >
-              the Create Requisition form is already open from step_004 with Requesting Agency,
-              Division, and Contract Type already filled — do NOT navigate away or open a new form.
-              Fill the Label field with the label from test data. Call read_page and confirm
-              the Label field shows the entered value.
+            expected: "the Label field shows the entered label value"
             data:
               label: "{{label}}"
 
           - id: req_020
             description: "Anticipated Contract Period dates are filled"
             type: behavioral
-            expected: >
-              on the open Create Requisition form (do NOT navigate away), fill both date fields:
-              call fill_field("(M/d/yyyy)", "6/1/2026") for the start date, then call
-              fill_field("to", "5/31/2027") for the end date (the end date is under the "to:"
-              heading). Do NOT click the calendar icon or open a date picker.
-              Call read_page and confirm both date inputs show date values.
+            expected: "both Anticipated Contract Period date fields show the entered date values"
             data:
               contract_period_start: "{{contract_period_start}}"
               contract_period_end: "{{contract_period_end}}"
@@ -205,11 +175,7 @@ flows:
           - id: req_021
             description: "Funding Type field accepts a selection"
             type: behavioral
-            expected: >
-              on the open Create Requisition form (do NOT navigate away), fill the Funding Type
-              field using fill_field with the funding_type value from test data. After fill_field,
-              call read_page to see the suggestion list, then click the matching suggestion.
-              Confirm the Funding Type field shows the selected value.
+            expected: "the Funding Type field shows the selected funding type"
             data:
               funding_type: "{{funding_type}}"
             depends_on: [req_020]
@@ -217,10 +183,7 @@ flows:
           - id: req_022
             description: "Procurement Description text area accepts input"
             type: behavioral
-            expected: >
-              on the open Create Requisition form (do NOT navigate away), fill the Procurement
-              Description / Executive Summary text area with the description from test data.
-              Call read_page and confirm the text area shows the entered text.
+            expected: "the Procurement Description / Executive Summary text area shows the entered text"
             data:
               procurement_description: "{{procurement_description}}"
             depends_on: [req_021]
@@ -229,10 +192,8 @@ flows:
             description: "Saving a fully filled requisition assigns a unique REQ number in the page title"
             type: transition
             expected: >
-              on the open Create Requisition form with all fields already filled (do NOT navigate
-              away), click the Save button. Confirm the page title changes to
-              'Requisition: REQxxxxxx - <label> (Draft)' where REQxxxxxx is a unique requisition
-              number, and that 'Cancel requisition' and 'Duplicate Req.' buttons are visible.
+              after saving the form, the page title shows 'Requisition: REQxxxxxx - <label> (Draft)'
+              with a unique REQ number, and both 'Cancel requisition' and 'Duplicate Req.' buttons are visible
             depends_on: [req_022]
 
       # ── Step 6: Procurement Method Questionnaire ─────────────────────────
@@ -245,35 +206,18 @@ flows:
           - id: req_024
             description: "Procurement Method Questionnaire section is visible on the saved requisition"
             type: existence
-            expected: >
-              The browser is already on the saved requisition page from the previous save —
-              do NOT navigate. Call read_page first to confirm the current page. Then click
-              the 'Procurement Method' tab in the left panel navigation to open the PMQ section.
-              Confirm a 'Procurement Method Questionnaire' section is visible containing an
-              Estimated Total Cost field and a PM Req field showing the requisition number.
+            expected: "the Procurement Method Questionnaire section is visible on the saved requisition, containing an Estimated Total Cost field and a PM Req field"
 
           - id: req_025
             description: "Procurement Method combobox exists in the PMQ section"
             type: existence
-            expected: >
-              on the PMQ tab (do NOT navigate away), call read_page and confirm a
-              'Procurement Method' combobox or dropdown field is visible in the
-              'Select the Procurement Method Below' sub-section.
+            expected: "a 'Procurement Method' combobox or dropdown field is visible in the 'Select the Procurement Method Below' section"
             depends_on: [req_024]
 
           - id: req_026
             description: "Selecting Emergency as Procurement Method triggers three conditional questions"
             type: behavioral
-            expected: >
-              on the PMQ tab (do NOT navigate away), fill the Procurement Method field using
-              fill_field('Procurement Method', 'Emergency'). After fill_field, call read_page
-              to see the suggestion list, then click 'Emergency' to select it. Call read_page
-              once and confirm the Procurement Method field shows 'Emergency' as the selected
-              value (you will see the text 'Emergency' next to a 'Delete the value.' button).
-              Call verify_claim immediately once that is confirmed.
-              STOP — do NOT press End/PageDown/Home. Do NOT click Yes or No for any
-              conditional questions. Do NOT look for three questions — that is background
-              context only, not a verification requirement.
+            expected: "the Procurement Method field shows the selected procurement method value"
             data:
               procurement_method: "{{procurement_method}}"
             depends_on: [req_025]
@@ -281,22 +225,13 @@ flows:
           - id: req_027
             description: "Answer Yes to the emergency danger question"
             type: behavioral
-            expected: >
-              on the PMQ tab (do NOT navigate away), a mandatory Yes/No question is visible:
-              'Was an Emergency procurement declared due to unforeseen danger to life, safety,
-              property, or a necessary service?' Select 'Yes' for this question.
-              Call read_page and confirm 'Yes' is selected for this question.
+            expected: "the question 'Was an Emergency procurement declared due to unforeseen danger to life, safety, property, or a necessary service?' shows 'Yes' as the selected answer"
             depends_on: [req_026]
 
           - id: req_028
             description: "Select the Vendor using typeahead search"
             type: behavioral
-            expected: >
-              on the PMQ tab (do NOT navigate away), after answering Yes to the danger question
-              a 'Select the Vendor' field becomes visible. Fill it using fill_field with the
-              vendor search term from test data. After fill_field, call read_page to see
-              suggestions, then click the matching vendor. Confirm the Vendor field shows
-              the selected vendor.
+            expected: "the Vendor field shows the selected vendor name"
             data:
               vendor_search: "{{vendor_search}}"
             depends_on: [req_027]
@@ -304,28 +239,17 @@ flows:
           - id: req_029
             description: "Answer Yes to the accelerated procurement question"
             type: behavioral
-            expected: >
-              on the PMQ tab (do NOT navigate away), after selecting the vendor a second
-              Yes/No question becomes visible asking whether this is an accelerated procurement
-              for commodities that must be obtained quickly due to significant shortages and/or
-              short-term price fluctuations in markets such as chemicals, energy, food, metals
-              (ferrous and non-ferrous), paper and plastics. This is a DIFFERENT question from
-              the danger question already answered. Select 'Yes' for this question only.
-              Call read_page and confirm 'Yes' is selected for the accelerated procurement question.
+            expected: "the Yes/No question about accelerated procurement for commodities subject to significant shortages and/or short-term price fluctuations shows 'Yes' as the selected answer"
             depends_on: [req_028]
 
           - id: req_030
             description: "Save the PMQ form"
             type: behavioral
-            expected: >
-              on the PMQ tab with all questions answered (do NOT navigate away), click the
-              Save button. Call read_page and confirm the page reloads without validation errors.
+            expected: "saving the PMQ form succeeds and the page reloads without validation errors"
             depends_on: [req_029]
 
           - id: req_031
             description: "'Change Procurement Method' button is visible after saving the PMQ"
             type: existence
-            expected: >
-              after saving the PMQ (do NOT navigate away), call read_page and confirm a
-              'Change Procurement Method' button is visible on the page.
+            expected: "a 'Change Procurement Method' button is visible on the page"
             depends_on: [req_030]

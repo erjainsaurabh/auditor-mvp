@@ -1,8 +1,8 @@
 claims:
   login_001:
     claim_id: login_001
-    recorded_at: '2026-05-08T03:31:02.442715+00:00'
-    run_id: run_bb960655
+    recorded_at: '2026-05-11T16:48:12.139945+00:00'
+    run_id: run_8f6bc281
     verdict: verified
     confidence: high
     actions:
@@ -10,23 +10,20 @@ claims:
       args: {}
       selectors: []
       assertions: []
-    - tool: take_screenshot
-      args:
-        label: Home page loaded with main navigation menu visible
-      selectors: []
-      assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: The login was successful and the home page has loaded completely
-          with a fully visible main navigation menu containing the expected items
-          (Vendors, Catalog, Requisition, Sourcing, Contracts, Ordering, Receiving,
-          Financials, Reporting, Rules, Support, and Vendor Reporting). The user is
-          authenticated as shown by the profile name in the banner, and the dashboard
-          displays task information confirming successful access to the application.
+        reasoning: The home page has successfully loaded after login. The main navigation
+          menu is clearly visible with all expected menu items including Vendors,
+          Requisition, Contracts, Sourcing, Ordering, Receiving, Financials, Reporting,
+          and Support. The page title is "Home Page" and the user is logged in as
+          "DHS A." as shown in the profile menu. All elements of the expected outcome
+          are present and visible.
       selectors: []
-      assertions: []
+      assertions:
+      - Home Page
+      - DHS A.
     setup_records:
     - tool: fill_field
       args:
@@ -35,8 +32,8 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_User_ID"]
-        successes: 68
-        failures: 4
+        successes: 1
+        failures: 0
       assertions: []
     - tool: fill_field
       args:
@@ -45,7 +42,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_Password"]
-        successes: 72
+        successes: 1
         failures: 0
       assertions: []
     - tool: submit_form

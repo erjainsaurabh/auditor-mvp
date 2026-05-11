@@ -1,0 +1,54 @@
+claims:
+  login_001:
+    claim_id: login_001
+    recorded_at: '2026-05-08T03:31:02.442715+00:00'
+    run_id: run_bb960655
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Home page loaded with main navigation menu visible
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The login was successful and the home page has loaded completely
+          with a fully visible main navigation menu containing the expected items
+          (Vendors, Catalog, Requisition, Sourcing, Contracts, Ordering, Receiving,
+          Financials, Reporting, Rules, Support, and Vendor Reporting). The user is
+          authenticated as shown by the profile name in the banner, and the dashboard
+          displays task information confirming successful access to the application.
+      selectors: []
+      assertions: []
+    setup_records:
+    - tool: fill_field
+      args:
+        field_label: Email Address
+        value: DHSACCOSTAFFADMINTWO@doitt.nyc.gov
+      selectors:
+      - type: xpath
+        value: //*[@id="Ecom_User_ID"]
+        successes: 68
+        failures: 4
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Password
+        value: '****'
+      selectors:
+      - type: xpath
+        value: //*[@id="Ecom_Password"]
+        successes: 72
+        failures: 0
+      assertions: []
+    - tool: submit_form
+      args: {}
+      selectors: []
+      assertions: []
