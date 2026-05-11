@@ -18,6 +18,21 @@ from auditor.loader import StepStatus, load_flows
 from auditor.report import print_summary, write_report
 from auditor.tools import BrowserSession
 
+
+def _make_session(app_config: dict) -> BrowserSession:
+    """Instantiate the right BrowserSession subclass based on config.platform."""
+    platform = app_config.get("platform", "generic").lower()
+    kwargs = dict(
+        base_url=app_config["base_url"],
+        headless=app_config["headless"],
+        slow_mo_ms=app_config.get("slow_mo_ms", 0),
+    )
+    if platform == "ivalua":
+        from auditor.platforms.ivalua import IvaluaBrowserSession
+        return IvaluaBrowserSession(**kwargs)
+    # Default: generic BrowserSession (no platform-specific strategies)
+    return BrowserSession(**kwargs)
+
 console = Console()
 
 
@@ -63,11 +78,7 @@ def main() -> None:
     fp_router = FingerprintRouter(per_yaml_stores)
     all_evidence: list[dict] = []
 
-    with BrowserSession(
-        base_url=config["app"]["base_url"],
-        headless=config["app"]["headless"],
-        slow_mo_ms=config["app"].get("slow_mo_ms", 0),
-    ) as session:
+    with _make_session(config["app"]) as session:
         session_data: dict[str, str] = {}
 
         for step_id in order:

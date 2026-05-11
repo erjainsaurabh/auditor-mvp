@@ -35,8 +35,8 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_User_ID"]
-        successes: 39
-        failures: 1
+        successes: 58
+        failures: 4
       assertions: []
     - tool: fill_field
       args:
@@ -45,7 +45,7 @@ claims:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_Password"]
-        successes: 40
+        successes: 62
         failures: 0
       assertions: []
     - tool: submit_form

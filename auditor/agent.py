@@ -148,6 +148,8 @@ def _replay_selector(
 
             if tool == "click":
                 loc.click(timeout=5000)
+                # Brief wait for tab/panel transitions to settle before next action
+                page.wait_for_timeout(400)
                 sel.successes += 1
                 return f"clicked (replay:{sel.type})"
             elif tool == "hover":
@@ -160,11 +162,10 @@ def _replay_selector(
                 role = loc.get_attribute("role", timeout=1000) or ""
                 aria_auto = loc.get_attribute("aria-autocomplete", timeout=1000) or ""
                 if role == "combobox" or aria_auto:
-                    loc.click(timeout=2000)
-                    page.wait_for_timeout(200)
+                    loc.focus(timeout=2000)
+                    page.wait_for_timeout(150)
                     page.keyboard.press("Control+a")
-                    page.keyboard.press("Backspace")
-                    page.wait_for_timeout(100)
+                    page.wait_for_timeout(50)
                     loc.press_sequentially(value, delay=80)
                     page.wait_for_timeout(3000)
                 else:
@@ -189,11 +190,17 @@ def _resolve_template(value: str, session_data: dict[str, str]) -> str:
 
 
 def _templatize_actions(actions: list[ActionRecord], session_data: dict[str, str]) -> None:
-    """Replace session_data values in navigate targets with {{key}} placeholders."""
+    """Replace session_data values in navigate targets with {{key}} placeholders.
+
+    Only named keys (no leading underscore) are used — internal tracking keys
+    like _last_url and _last_title are excluded so they don't shadow the correct
+    named key (e.g. requisition_url) when both hold the same URL at record time.
+    """
+    named_data = {k: v for k, v in session_data.items() if not k.startswith("_")}
     for action in actions:
         if action.tool == "navigate":
             target = action.args.get("target", "")
-            for key, val in session_data.items():
+            for key, val in named_data.items():
                 if val and val in target:
                     action.args["target"] = target.replace(val, f"{{{{{key}}}}}")
                     break
@@ -303,6 +310,10 @@ def run_step(
         console.print(f"    [dim]expected:[/dim] {claim.expected}")
 
         ev = EvidenceCollector(run_id=run_id, claim_id=claim_id, output_dir=output_dir)
+
+        # Reset focused-snapshot anchor so a prior claim's fill doesn't
+        # skew the viewport for the first read_page of this claim.
+        session._last_interacted_label = ""
 
         # Get stored fingerprint now (needed by _run_setup for fast-fill)
         fp_for_claim = fp_store.get(claim.id) if fp_store else None
@@ -530,6 +541,17 @@ def _react_loop(
                 # Record fingerprint for all verified claims
                 if fp_store and args.get("verdict") == "verified":
                     assertions = extract_assertions(args.get("reasoning", ""), last_snapshot)
+                    # Also assert every fill_field value — dates, labels, and typed
+                    # values MUST appear in the post-fill snapshot. This prevents the
+                    # case where a fingerprint was recorded against a pre-filled form
+                    # (no fill actions) and the assertions are just field labels that
+                    # are always present regardless of whether filling happened.
+                    snap_lower = last_snapshot.lower()
+                    for ar in action_records[:-1]:   # exclude the verify_claim record
+                        if ar.tool == "fill_field":
+                            val = ar.args.get("value", "")
+                            if len(val) >= 3 and val.lower() in snap_lower and val not in assertions:
+                                assertions.append(val)
                     action_records[-1].assertions = assertions
                     # Replace dynamic session values (e.g. requisition_url) with {{key}} placeholders
                     _templatize_actions(action_records, session_data or {})
@@ -640,27 +662,50 @@ def _dispatch(
 ) -> str:
     match name:
         case "navigate":
+            session._last_interacted_label = ""   # new page — reset focus
             return session.navigate(args["target"])
         case "read_page":
             return session.read_page()
         case "click":
-            return session.click(args["element_description"])
+            result = session.click(args["element_description"])
+            if not result.startswith("error"):
+                if "(tab)" in result or "(ivalua-listbox)" in result:
+                    # Tab clicks: revealed tabpanel content is elsewhere in the DOM.
+                    # Ivalua-listbox clicks: completing a suggestion selection — the
+                    # LLM needs to see the full form to observe new conditional fields.
+                    # In both cases, reset anchor so next read_page shows the full page.
+                    session._last_interacted_label = ""
+                else:
+                    session._last_interacted_label = args["element_description"].rstrip(" *").strip()
+            return result
         case "hover":
             return session.hover(args["element_description"])
         case "fill_field":
-            return session.fill_field(args["field_label"], args["value"])
+            result = session.fill_field(args["field_label"], args["value"])
+            if not result.startswith("error"):
+                session._last_interacted_label = args["field_label"].rstrip(" *").strip()
+            return result
         case "clear_field":
             return session.clear_field(args["field_label"])
         case "submit_form":
+            session._last_interacted_label = ""   # form submitted — reset focus
             return session.submit_form()
         case "press_key":
             return session.press_key(args["key"])
         case "get_field_options":
             return session.get_field_options(args["field_label"])
         case "select_option":
-            return session.select_option(args["field_label"], args["option_value"])
+            result = session.select_option(args["field_label"], args["option_value"])
+            if not result.startswith("error"):
+                session._last_interacted_label = args["field_label"].rstrip(" *").strip()
+            return result
         case "take_screenshot":
-            return evidence.save_screenshot(session.page, f"{claim.id}_{args['label']}")
+            # Highlight last interacted element before saving, then restore
+            xpath = session._highlight_last_element()
+            path = evidence.save_screenshot(session.page, f"{claim.id}_{args['label']}")
+            if xpath:
+                session._unhighlight_element(xpath)
+            return path
         case "verify_claim":
             return "verdict recorded"
         case _:

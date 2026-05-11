@@ -1,6 +1,7 @@
 app:
   base_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
   login_url: "https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx"
+  platform: ivalua        # selects platform adapter: ivalua | generic (extensible)
   headless: false
   slow_mo_ms: 0
   auth:

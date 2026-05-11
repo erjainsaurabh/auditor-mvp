@@ -16,6 +16,9 @@ class BrowserSession:
     _browser: Browser | None = field(default=None, init=False, repr=False)
     _page: Page | None = field(default=None, init=False, repr=False)
     _last_selectors: list[dict] = field(default_factory=list, init=False, repr=False)
+    # Label/text of the most recently interacted element — used by read_page
+    # to focus the aria snapshot and by take_screenshot to highlight on screen.
+    _last_interacted_label: str = field(default="", init=False, repr=False)
 
     def start(self) -> None:
         self._playwright = sync_playwright().start()
@@ -50,6 +53,126 @@ class BrowserSession:
             return ""
 
     # --- internal helpers ---
+
+    def _highlight_last_element(self) -> str | None:
+        """
+        Inject a bright outline on the last interacted element via JS.
+        Returns the XPath used (so the caller can unhighlight later), or None.
+        """
+        xpath = next(
+            (s["value"] for s in self._last_selectors if s.get("type") == "xpath"),
+            None,
+        )
+        if not xpath:
+            return None
+        try:
+            self._page.evaluate(f"""() => {{
+                const el = document.evaluate(
+                    {json.dumps(xpath)}, document, null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE, null
+                ).singleNodeValue;
+                if (!el) return;
+                el._prevOutline      = el.style.outline;
+                el._prevOutlineOff   = el.style.outlineOffset;
+                el._prevBg           = el.style.backgroundColor;
+                el.style.outline        = '3px solid #FF3333';
+                el.style.outlineOffset  = '3px';
+                el.style.backgroundColor = 'rgba(255,51,51,0.08)';
+            }}""")
+            return xpath
+        except Exception:
+            return None
+
+    def _unhighlight_element(self, xpath: str) -> None:
+        """Remove the highlight injected by _highlight_last_element."""
+        try:
+            self._page.evaluate(f"""() => {{
+                const el = document.evaluate(
+                    {json.dumps(xpath)}, document, null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE, null
+                ).singleNodeValue;
+                if (!el) return;
+                el.style.outline         = el._prevOutline    || '';
+                el.style.outlineOffset   = el._prevOutlineOff || '';
+                el.style.backgroundColor = el._prevBg         || '';
+            }}""")
+        except Exception:
+            pass
+
+    def _focused_snapshot(self, full_snapshot: str, ancestor_levels: int = 3) -> str:
+        """
+        Return the subtree of the aria snapshot that contains the last interacted
+        element, by walking UP the indentation tree a fixed number of levels and
+        then returning ALL children of that ancestor.
+
+        This gives a structurally complete section (e.g. the entire tabpanel or
+        form group) rather than an arbitrary line-count window that can slice
+        through the middle of a parent element and leave orphaned children.
+
+        ancestor_levels=3 means: go 3 indentation steps above the anchor line.
+        For a typical Ivalua form field inside a tabpanel the hierarchy is:
+            tabpanel (level 0)
+              heading  (level 1)
+              text: label (level 2)
+              combobox (level 2)  ← anchor
+        Walking 3 levels up from the combobox reaches tabpanel, whose subtree
+        includes every field, heading, and radio group in the PMQ section.
+        """
+        label = self._last_interacted_label
+        if not label:
+            return full_snapshot
+
+        lines = full_snapshot.splitlines()
+
+        # --- Find the LAST line that mentions this element's label or text ---
+        # Using last rather than first: form fields appear in <main> which comes
+        # after navigation elements that may share the same label text
+        # (e.g. "Procurement Method" tab vs "Procurement Method" combobox).
+        target = None
+        for i, line in enumerate(lines):
+            if label.lower()[:30] in line.lower():
+                target = i   # keep scanning — last match wins
+
+        if target is None:
+            return full_snapshot
+
+        # --- Walk UP the indentation tree ancestor_levels steps ---
+        def indent_of(line: str) -> int:
+            return len(line) - len(line.lstrip())
+
+        anchor_indent = indent_of(lines[target])
+        current_indent = anchor_indent
+        ancestor_line = target
+
+        steps_taken = 0
+        for j in range(target - 1, -1, -1):
+            if not lines[j].strip():
+                continue                        # skip blank lines
+            ind = indent_of(lines[j])
+            if ind < current_indent:
+                current_indent = ind
+                ancestor_line = j
+                steps_taken += 1
+                if steps_taken >= ancestor_levels:
+                    break
+            if current_indent == 0:
+                break                           # already at root
+
+        # --- Collect entire subtree of the ancestor ---
+        # The subtree ends at the next line whose indentation is ≤ ancestor's
+        ancestor_indent = indent_of(lines[ancestor_line])
+        end = len(lines)
+        for j in range(ancestor_line + 1, len(lines)):
+            if not lines[j].strip():
+                continue
+            if indent_of(lines[j]) <= ancestor_indent:
+                end = j
+                break
+
+        window = lines[ancestor_line:end]
+        prefix = f"[... {ancestor_line} lines above ...]\n" if ancestor_line > 0 else ""
+        suffix = f"\n[... {len(lines) - end} lines below ...]" if end < len(lines) else ""
+        return prefix + "\n".join(window) + suffix
 
     def _extract_selectors(self, locator) -> list[dict]:
         """Extract XPath, aria-label, and text from a Playwright Locator."""
@@ -107,24 +230,51 @@ class BrowserSession:
 
     def read_page(self) -> str:
         try:
-            snapshot = self._page.aria_snapshot()
-            url = self._page.url
-            title = self._page.title()
+            page  = self._page
+            url   = page.url
+            title = page.title()
+            snapshot = page.aria_snapshot()
 
-            # When a modal/popup iframe is open, read its content too
+            # ── Priority 1: visible listbox (autocomplete dropdown open) ──────
+            # Return only the dropdown — the LLM just needs to pick an item.
+            try:
+                lb = page.locator('[role="listbox"]:visible').first
+                if lb.count() > 0:
+                    lb_snap = lb.aria_snapshot(timeout=2000)
+                    if lb_snap and lb_snap.strip():
+                        return (
+                            f"url: {url}\ntitle: {title}\n\n"
+                            f"[active dropdown — pick an item]\n{lb_snap}"
+                        )
+            except Exception:
+                pass
+
+            # ── Priority 2: visible dialog/modal ─────────────────────────────
+            # Return only the modal content + any iframe content inside it.
+            try:
+                dlg = page.locator('[role="dialog"]:visible').first
+                if dlg.count() > 0:
+                    dlg_snap = dlg.aria_snapshot(timeout=2000)
+                    if dlg_snap and dlg_snap.strip():
+                        return (
+                            f"url: {url}\ntitle: {title}\n\n"
+                            f"[modal open]\n{dlg_snap}"
+                        )
+            except Exception:
+                pass
+
+            # ── Priority 3: iframe content (Ivalua browse modals) ────────────
             if "- iframe" in snapshot:
                 frame_parts: list[str] = []
-                for frame in self._page.frames[1:]:  # skip main frame
+                for frame in page.frames[1:]:
                     if not frame.url or frame.url == "about:blank":
                         continue
                     try:
-                        # aria_snapshot() is on Page not Frame — use locator on body
                         try:
                             frame_snap = frame.locator("body").aria_snapshot(timeout=3000)
                         except Exception:
                             frame_snap = ""
                         if not frame_snap or not frame_snap.strip():
-                            # fall back to visible text
                             frame_snap = frame.locator("body").inner_text(timeout=2000)
                         if frame_snap and frame_snap.strip():
                             label_hint = frame.name or frame.url.split("/")[-1]
@@ -136,10 +286,38 @@ class BrowserSession:
                 if frame_parts:
                     snapshot = snapshot + "\n\n" + "\n\n".join(frame_parts)
 
+            # ── Priority 4: focused view around last interacted element ───────
+            # If a click or fill just happened, centre the snapshot on that element.
+            if self._last_interacted_label:
+                focused = self._focused_snapshot(snapshot, ancestor_levels=3)
+                trimmed = _trim_table_rows(focused, max_rows=5)
+                return (
+                    f"url: {url}\ntitle: {title}\n\n"
+                    f"[focused — last action: {self._last_interacted_label!r}]\n{trimmed}"
+                )
+
+            # ── Default: full page with table trimming ────────────────────────
             trimmed = _trim_table_rows(snapshot, max_rows=5)
             return f"url: {url}\ntitle: {title}\n\n{trimmed}"
+
         except Exception as e:
             return f"error reading page: {e}"
+
+    def _platform_click_priority(self, desc: str) -> str | None:
+        """
+        Extension hook — override in platform subclasses to inject high-priority
+        click strategies that must run before generic ones (e.g. custom listbox widgets).
+        Return a result string if handled, None to fall through to generic strategies.
+        """
+        return None
+
+    def _platform_fill_strategies(self, label: str, slug: str, value: str) -> str | None:
+        """
+        Extension hook — override in platform subclasses to inject platform-specific
+        fill strategies that run before the generic get_by_label / placeholder / aria
+        strategies. Return a result string if handled, None to fall through.
+        """
+        return None
 
     def click(self, element_description: str) -> str:
         page = self._page
@@ -147,27 +325,10 @@ class BrowserSession:
         # Strip mandatory-field asterisk markers that bleed into aria labels
         desc = element_description.rstrip(" *").strip()
 
-        # Priority 0: Ivalua listbox — check FIRST before any generic strategy.
-        # When an autocomplete dropdown is open, get_by_text() can click the wrong
-        # element before reaching this fallback. Run it first to avoid false positives.
-        try:
-            found = page.evaluate(f"""() => {{
-                const containers = document.querySelectorAll(
-                    'ul[role="listbox"], .iv-menu-container ul, .scrolling.menu.visible'
-                );
-                for (const lb of containers) {{
-                    if (!lb.offsetParent) continue;  // skip hidden containers
-                    const items = Array.from(lb.querySelectorAll('li, [role="option"], a, span'));
-                    const item = items.find(el => el.textContent.trim().includes("{desc}"));
-                    if (item) {{ item.click(); return true; }}
-                }}
-                return false;
-            }}""")
-            if found:
-                page.wait_for_timeout(500)
-                return f"clicked '{element_description}' (listbox)"
-        except Exception:
-            pass
+        # Priority 0: platform-specific strategies (listbox widgets, custom dropdowns, etc.)
+        result = self._platform_click_priority(desc)
+        if result is not None:
+            return result
 
         # Strip a leading role prefix the LLM sometimes adds, e.g. 'tab "Foo"' → 'Foo'
         import re as _re
@@ -176,19 +337,22 @@ class BrowserSession:
         css_desc = desc.replace('"', '\\"')
         css_clean = clean.replace('"', '\\"')
 
-        normal_strategies = [
-            lambda: page.get_by_role("option", name=clean).first,
-            lambda: page.get_by_role("tab", name=clean).first,
-            lambda: page.get_by_role("tab", name=desc).first,
-            lambda: page.get_by_text(clean, exact=True).first,
-            lambda: page.get_by_text(desc, exact=True).first,
-            lambda: page.get_by_text(clean, exact=False).first,
-            lambda: page.get_by_role("button", name=clean).first,
-            lambda: page.get_by_role("link", name=clean).first,
-            lambda: page.locator(f'[aria-label*="{css_clean}"]').first,
-            lambda: page.locator(f'[title*="{css_clean}"]').first,
+        # Strategies paired with a boolean: True = this is a tab/navigation click.
+        # Tab clicks should NOT anchor the focused snapshot — the revealed tabpanel
+        # content appears elsewhere in the DOM, far below the tab element itself.
+        normal_strategies: list[tuple[Any, bool]] = [
+            (lambda: page.get_by_role("option", name=clean).first, False),
+            (lambda: page.get_by_role("tab", name=clean).first,    True),   # tab
+            (lambda: page.get_by_role("tab", name=desc).first,     True),   # tab
+            (lambda: page.get_by_text(clean, exact=True).first,    False),
+            (lambda: page.get_by_text(desc, exact=True).first,     False),
+            (lambda: page.get_by_text(clean, exact=False).first,   False),
+            (lambda: page.get_by_role("button", name=clean).first, False),
+            (lambda: page.get_by_role("link", name=clean).first,   False),
+            (lambda: page.locator(f'[aria-label*="{css_clean}"]').first, False),
+            (lambda: page.locator(f'[title*="{css_clean}"]').first,      False),
         ]
-        for i, strategy in enumerate(normal_strategies):
+        for i, (strategy, is_tab) in enumerate(normal_strategies):
             try:
                 loc = strategy()
                 selectors = self._extract_selectors(loc)
@@ -197,6 +361,10 @@ class BrowserSession:
                     print(f"           [click strategy {i+1}] element: {sel_str}")
                 self._last_selectors = selectors
                 loc.click(timeout=1500)
+                # Tab clicks: wait a moment for the tabpanel to render
+                if is_tab:
+                    page.wait_for_timeout(600)
+                    return f"clicked '{element_description}' (tab)"
                 return f"clicked '{element_description}'"
             except Exception as e:
                 print(f"           [click strategy {i+1}] failed: {e}")
@@ -239,6 +407,7 @@ class BrowserSession:
                     target = radio_locs.first
                 target.check(timeout=2000)
                 page.wait_for_timeout(800)
+                self._last_selectors = self._extract_selectors(target)
                 print(f"           [click radio] checked radio '{clean}' (idx {idx if target else 0})")
                 return f"clicked '{element_description}' (radio)"
         except Exception as e:
@@ -247,9 +416,10 @@ class BrowserSession:
         # JavaScript radio fallback — finds input[type=radio] by adjacent label text,
         # prefers unchecked radios, sets checked and dispatches change event to trigger
         # Ivalua conditional logic (e.g. showing conditional fields).
+        # Returns the radio's id so we can extract selectors for screenshot highlighting.
         try:
             js_desc = desc.replace("\\", "\\\\").replace('"', '\\"')
-            found = page.evaluate(f"""() => {{
+            radio_id = page.evaluate(f"""() => {{
                 const text = "{js_desc}";
                 // First pass: prefer unchecked radios with matching label
                 for (const radio of document.querySelectorAll('input[type="radio"]')) {{
@@ -261,7 +431,7 @@ class BrowserSession:
                         radio.dispatchEvent(new Event('change', {{bubbles: true}}));
                         radio.dispatchEvent(new Event('input', {{bubbles: true}}));
                         radio.click();
-                        return true;
+                        return radio.id || null;
                     }}
                 }}
                 // Second pass: fall back to any matching radio (already checked ones)
@@ -273,26 +443,40 @@ class BrowserSession:
                         radio.dispatchEvent(new Event('change', {{bubbles: true}}));
                         radio.dispatchEvent(new Event('input', {{bubbles: true}}));
                         radio.click();
-                        return true;
+                        return radio.id || null;
                     }}
                 }}
-                return false;
+                return null;
             }}""")
-            if found:
+            if radio_id is not None:
                 page.wait_for_timeout(800)
+                try:
+                    loc = page.locator(f"#{radio_id}").first
+                    self._last_selectors = self._extract_selectors(loc)
+                except Exception:
+                    pass
                 return f"clicked '{element_description}' (radio-js)"
         except Exception as e:
             print(f"           [click radio-js] failed: {e}")
 
         # JavaScript click — works on CSS-hidden elements (e.g. hover dropdowns)
+        # Returns {found, id} so we can extract selectors for screenshot highlighting.
         try:
-            found = page.evaluate(f"""() => {{
+            js_desc = desc.replace("\\", "\\\\").replace('"', '\\"')
+            js_result = page.evaluate(f"""() => {{
                 const all = Array.from(document.querySelectorAll('a, button, [role="menuitem"]'));
-                const el = all.find(e => e.textContent.trim().includes("{desc}"));
-                if (el) {{ el.click(); return true; }}
-                return false;
+                const el = all.find(e => e.textContent.trim().includes("{js_desc}"));
+                if (el) {{ el.click(); return {{found: true, id: el.id || ''}}; }}
+                return {{found: false, id: ''}};
             }}""")
-            if found:
+            if js_result and js_result.get("found"):
+                el_id = js_result.get("id", "")
+                if el_id:
+                    try:
+                        loc = page.locator(f"#{el_id}").first
+                        self._last_selectors = self._extract_selectors(loc)
+                    except Exception:
+                        pass
                 return f"clicked '{element_description}' (js)"
         except Exception:
             pass
@@ -369,12 +553,12 @@ class BrowserSession:
             role = loc.get_attribute("role", timeout=1000) or ""
             aria_auto = loc.get_attribute("aria-autocomplete", timeout=1000) or ""
             if role == "combobox" or aria_auto:
-                # Ivalua autocomplete — clear then type character by character to trigger XHR
-                loc.click(timeout=2000)
-                self._page.wait_for_timeout(200)
+                # focus() avoids widget click side-effects; Ctrl+A selects stale
+                # content; press_sequentially replaces it to trigger per-key XHR
+                loc.focus(timeout=2000)
+                self._page.wait_for_timeout(150)
                 self._page.keyboard.press("Control+a")
-                self._page.keyboard.press("Backspace")
-                self._page.wait_for_timeout(100)
+                self._page.wait_for_timeout(50)
                 loc.press_sequentially(value, delay=80)
                 self._page.wait_for_timeout(3000)
             else:
@@ -389,135 +573,10 @@ class BrowserSession:
         label = field_label.rstrip(" *").strip()
         slug = label.lower().replace(" ", "")
 
-        # Strategy 0 (first): Ivalua iv-autocompletion-selector.
-        # Must run before generic strategies because:
-        # 1. The label is a <span data-iv-role="label">, not <label for=...>, so get_by_label
-        #    either fails or resolves to a wrong/hidden element.
-        # 2. Ivalua's autocomplete listens for per-keystroke keyup events ("Type at least 3
-        #    characters") — fill() dispatches a single input event and doesn't trigger XHR.
-        # 3. Generic strategies' control.click() can accidentally open the "See All" modal.
-        try:
-            result = page.evaluate("""(lbl) => {
-                const labelEls = Array.from(document.querySelectorAll(
-                    '[data-iv-role="label"], label, th, .field-label'
-                ));
-                const match = labelEls.find(el => {
-                    const txt = el.textContent.trim().replace(/\\s*\\*\\s*$/, '').trim();
-                    return txt === lbl || txt.startsWith(lbl);
-                });
-                if (!match) return {found: false, reason: 'label not found'};
-                const wrapper = match.closest('[data-iv-role="controlWrapper"]') ||
-                                match.parentElement;
-                if (!wrapper) return {found: false, reason: 'no wrapper'};
-                const inp = wrapper.querySelector(
-                    'input[role="combobox"], input.search, input[aria-autocomplete]'
-                );
-                if (!inp) return {found: false, reason: 'no search input'};
-                return {found: true, id: inp.id, name: inp.name};
-            }""", label)
-            if result and result.get("found"):
-                inp_id = result.get("id")
-                inp_name = result.get("name")
-                print(f"           [fill_field ivalua] input id={inp_id!r} name={inp_name!r}")
-                inp_loc = page.locator(f"#{inp_id}").first if inp_id else page.locator(f'input[name="{inp_name}"]').first
-                inp_loc.click(timeout=2000)
-                page.wait_for_timeout(200)
-                # Clear any existing text before typing (Ctrl+A then Backspace)
-                page.keyboard.press("Control+a")
-                page.keyboard.press("Backspace")
-                page.wait_for_timeout(100)
-                inp_loc.press_sequentially(value, delay=80)
-                page.wait_for_timeout(3000)
-                self._last_selectors = self._extract_selectors(inp_loc)
-                return f"filled '{label}' with '{value}' (ivalua-autocomplete)"
-            else:
-                print(f"           [fill_field ivalua] not found: {result}")
-        except Exception as e:
-            print(f"           [fill_field ivalua] failed: {e}")
-
-        # Strategy 0a: combobox by aria-label — handles Ivalua fields where the combobox
-        # element itself has role=combobox + aria-label (not wrapped in iv-autocompletion).
-        # click() focuses it, press_sequentially() triggers per-keystroke XHR like Agency/Division.
-        try:
-            loc = page.get_by_role("combobox", name=label).first
-            if loc.count() > 0:
-                print(f"           [fill_field combobox-aria] found combobox '{label}'")
-                # Clear any existing selection — Ivalua shows a "Delete the value." button
-                # when a value is already selected. Clicking it clears the chip/token before
-                # we type, preventing "EmergencyEmergency"-style doubling.
-                try:
-                    del_btn = loc.locator("xpath=following::button[contains(@title,'Delete') or contains(text(),'Delete')]").first
-                    if del_btn.count() == 0:
-                        # Try JS: find a delete button near this combobox
-                        page.evaluate(f"""() => {{
-                            const cb = document.querySelector('[aria-label="{label}"]') ||
-                                       document.querySelector('[name="{label}"]');
-                            if (!cb) return;
-                            const container = cb.closest('[data-iv-role="controlWrapper"]') || cb.parentElement;
-                            if (!container) return;
-                            const btn = container.querySelector('button[title*="Delete"], button[aria-label*="Delete"]');
-                            if (btn) btn.click();
-                        }}""")
-                        page.wait_for_timeout(300)
-                    else:
-                        del_btn.click(timeout=1000)
-                        page.wait_for_timeout(300)
-                except Exception:
-                    pass
-                loc.click(timeout=2000)
-                page.wait_for_timeout(200)
-                page.keyboard.press("Control+a")
-                page.keyboard.press("Backspace")
-                page.wait_for_timeout(100)
-                loc.press_sequentially(value, delay=80)
-                page.wait_for_timeout(3000)
-                self._last_selectors = self._extract_selectors(loc)
-                return f"filled '{label}' with '{value}' (combobox-aria)"
-        except Exception as e:
-            print(f"           [fill_field combobox-aria] failed: {e}")
-
-        # Strategy 0b: Ivalua date range end field — find the first input[type=text]
-        # that appears after a heading whose text starts with "to:" using a DOM TreeWalker.
-        # Sibling-walk fails when the input is nested; TreeWalker traverses the full subtree.
-        if slug in ("to", "enddate", "todate", "contractperiodend"):
-            try:
-                result = page.evaluate("""() => {
-                    const walker = document.createTreeWalker(
-                        document.body, NodeFilter.SHOW_ELEMENT
-                    );
-                    let node;
-                    let foundToHeading = false;
-                    while ((node = walker.nextNode())) {
-                        if (!foundToHeading) {
-                            const tag = node.tagName || '';
-                            if (/^H[1-6]$/.test(tag)) {
-                                const txt = node.textContent.trim();
-                                if (txt.startsWith('to:') || txt === 'to') {
-                                    foundToHeading = true;
-                                }
-                            }
-                        } else {
-                            if (node.tagName === 'INPUT' && node.type === 'text') {
-                                return {found: true, id: node.id, name: node.name};
-                            }
-                        }
-                    }
-                    return {found: false, reason: 'end date input not found after to: heading'};
-                }""")
-                if result and result.get("found"):
-                    inp_id = result.get("id")
-                    inp_name = result.get("name")
-                    loc = page.locator(f"#{inp_id}").first if inp_id else page.locator(f'input[name="{inp_name}"]').first
-                    print(f"           [fill_field date-end] id={inp_id!r}")
-                    loc.fill(value, timeout=2000)
-                    page.keyboard.press("Escape")
-                    page.wait_for_timeout(300)
-                    self._last_selectors = self._extract_selectors(loc)
-                    return f"filled 'to' date with '{value}' (ivalua-date-end)"
-                else:
-                    print(f"           [fill_field date-end] not found: {result}")
-            except Exception as e:
-                print(f"           [fill_field date-end] failed: {e}")
+        # Platform-specific strategies run first (autocomplete widgets, custom date pickers, etc.)
+        result = self._platform_fill_strategies(label, slug, value)
+        if result is not None:
+            return result
 
         # Generic strategies 1-5
         strategies = [

@@ -97,15 +97,26 @@ class FingerprintRouter:
 
 
 def extract_assertions(reasoning: str, snapshot: str) -> list[str]:
-    """Pull quoted terms from LLM reasoning that also appear in the page snapshot."""
-    quoted = re.findall(r'"([^"]{3,60})"', reasoning)
+    """Pull quoted terms from LLM reasoning that also appear in the page snapshot.
+
+    Matches both double-quoted ("Foo") and single-quoted ('Foo') strings so that
+    LLM phrasing style doesn't cause empty assertion lists.  Only terms that
+    actually appear in the current snapshot are stored — this keeps assertions
+    live and avoids storing stale strings.
+    """
+    # Collect candidates from both quote styles; deduplicate by lower-case value
+    double_quoted = re.findall(r'"([^"]{3,60})"', reasoning)
+    single_quoted = re.findall(r"'([^']{3,60})'", reasoning)
+    candidates = double_quoted + single_quoted
+
     snapshot_lower = snapshot.lower()
     seen: set[str] = set()
     result: list[str] = []
-    for q in quoted:
-        if q not in seen and q.lower() in snapshot_lower:
-            seen.add(q)
+    for q in candidates:
+        q_lower = q.lower()
+        if q_lower not in seen and q_lower in snapshot_lower:
+            seen.add(q_lower)
             result.append(q)
-        if len(result) >= 4:
+        if len(result) >= 6:   # raised from 4 — single+double can give more candidates
             break
     return result
