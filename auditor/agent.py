@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -178,6 +179,37 @@ def _replay_selector(
         except Exception:
             sel.failures += 1
             continue
+
+    # JS click fallback for click actions — some buttons (e.g. Ivalua's Save)
+    # cannot be clicked via Playwright's actionability checks but respond to
+    # a direct JS el.click(). Try each XPath selector via JS before giving up.
+    if tool == "click":
+        for sel in selectors:
+            if sel.type == "xpath":
+                try:
+                    xpath_js = sel.value.replace("\\", "\\\\").replace('"', '\\"')
+                    clicked = page.evaluate(f"""() => {{
+                        const r = document.evaluate(
+                            "{xpath_js}", document, null,
+                            XPathResult.FIRST_ORDERED_NODE_TYPE, null
+                        );
+                        const el = r.singleNodeValue;
+                        if (el) {{ el.click(); return true; }}
+                        return false;
+                    }}""")
+                    if clicked:
+                        sel.successes += 1
+                        # Allow up to 5s for navigation triggered by the click
+                        # (e.g. Save button that submits a form and redirects).
+                        # Falls through silently if no navigation occurs.
+                        try:
+                            page.wait_for_load_state("domcontentloaded", timeout=5000)
+                        except Exception:
+                            page.wait_for_timeout(800)
+                        return "clicked (replay:xpath-js)"
+                except Exception:
+                    pass
+
     return "error: all selectors failed"
 
 
@@ -230,7 +262,12 @@ def _try_fingerprint_replay(
             result = session.navigate(target)
             evidence.log_action(f"navigate({target}) [replay]", result)
             if result.startswith("error"):
-                return None
+                # ERR_ABORTED = server-side redirect that Playwright reports as aborted.
+                # The browser follows the redirect and is still within the app — continue
+                # the replay rather than bailing. All other errors are fatal.
+                if "ERR_ABORTED" not in result:
+                    return None
+                print(f"           [replay] navigate ERR_ABORTED (redirect) — continuing")
 
         elif tool == "read_page":
             # Only replay intermediate reads needed for state (skip purely-observational ones)
@@ -257,6 +294,10 @@ def _try_fingerprint_replay(
                 _snap_from_messages(
                     [{"role": "tool", "content": last_snapshot}], snap
                 )
+                # Dynamic-ID assertions (containing 5+ digit sequences) should have
+                # been filtered out at recording time by extract_assertions(), so
+                # the stored list should only contain stable structural strings.
+                # A simple case-insensitive substring check is sufficient.
                 snapshot_lower = last_snapshot.lower()
                 if not all(a.lower() in snapshot_lower for a in action.assertions):
                     return None  # page content changed — fall back to ReAct
@@ -334,11 +375,22 @@ def run_step(
             if available:
                 data_str = "\n".join(f"  {k}: {v}" for k, v in available.items())
                 nav_hint = f"\n  start at: {step.navigation}" if step.navigation else ""
-                nav_context = (
-                    f"Session data from previous steps:\n{data_str}\n"
-                    f"Use this data to navigate directly if relevant"
-                    f"{nav_hint}\n"
-                )
+                current_browser = session_data.get("_last_url", "")
+                if current_browser:
+                    nav_context = (
+                        f"Browser is currently at: {current_browser}. "
+                        f"Session data from previous steps:\n{data_str}\n"
+                        f"IMPORTANT: If the browser is already on the target page, "
+                        f"do NOT navigate — proceed directly with the claim. "
+                        f"Only navigate if the current page is clearly wrong."
+                        f"{nav_hint}\n"
+                    )
+                else:
+                    nav_context = (
+                        f"Session data from previous steps:\n{data_str}\n"
+                        f"Use this data to navigate directly if relevant"
+                        f"{nav_hint}\n"
+                    )
             elif step.depends_on and session_data.get("_last_url"):
                 last_url = session_data["_last_url"]
                 last_title = session_data.get("_last_title", "")

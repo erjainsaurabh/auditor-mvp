@@ -42,22 +42,25 @@ class IvaluaBrowserSession(BrowserSession):
                     if (!item) item = items.find(el => el.textContent.trim().includes("{js_desc}"));
                     if (item) {{
                         item.click();
-                        return {{text: item.textContent.trim().substring(0, 60), id: item.id || ''}};
+                        return {{text: item.textContent.trim(), id: item.id || ''}};
                     }}
                 }}
                 return null;
             }}""")
             if result:
-                page.wait_for_timeout(800)
-                print(f"           [ivalua-listbox] clicked item: {result['text']!r}")
-                # Extract selectors for screenshot highlighting
-                el_id = result.get("id", "")
-                if el_id:
-                    try:
-                        loc = page.locator(f"#{el_id}").first
-                        self._last_selectors = self._extract_selectors(loc)
-                    except Exception:
-                        pass
+                # Wait for Ivalua's conditional-field logic to finish rendering.
+                # 800ms is not enough when selecting a value triggers multiple
+                # conditional question groups (e.g. Emergency → 3 questions).
+                page.wait_for_timeout(2500)
+                item_text = result.get("text", "")
+                print(f"           [ivalua-listbox] clicked item: {item_text!r}")
+                # Store a text selector — listbox <li> items rarely have IDs,
+                # but text is stable and works for replay via get_by_text().
+                if item_text:
+                    self._last_selectors = [{"type": "text", "value": item_text,
+                                             "successes": 1, "failures": 0}]
+                else:
+                    self._last_selectors = []
                 return f"clicked '{desc}' (ivalua-listbox)"
         except Exception as e:
             print(f"           [ivalua-listbox] failed: {e}")

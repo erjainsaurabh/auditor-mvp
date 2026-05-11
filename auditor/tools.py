@@ -459,24 +459,52 @@ class BrowserSession:
         except Exception as e:
             print(f"           [click radio-js] failed: {e}")
 
-        # JavaScript click — works on CSS-hidden elements (e.g. hover dropdowns)
-        # Returns {found, id} so we can extract selectors for screenshot highlighting.
+        # JavaScript click — works on CSS-hidden elements (e.g. hover dropdowns).
+        # Returns {found, id, xpath} so we can extract selectors for fingerprinting.
+        # Computes XPath as fallback when element has no id attribute.
+        # Visibility guard: only match elements with offsetParent !== null so that
+        # hidden/detached buttons (e.g. Ivalua's secondary btnApprove) are skipped
+        # in favour of the visible action-bar button. Exact text match is tried
+        # first; contains-match is the fallback so partial labels still work.
         try:
             js_desc = desc.replace("\\", "\\\\").replace('"', '\\"')
             js_result = page.evaluate(f"""() => {{
-                const all = Array.from(document.querySelectorAll('a, button, [role="menuitem"]'));
-                const el = all.find(e => e.textContent.trim().includes("{js_desc}"));
-                if (el) {{ el.click(); return {{found: true, id: el.id || ''}}; }}
-                return {{found: false, id: ''}};
+                function getXPath(el) {{
+                    if (el.id) return '//*[@id="' + el.id + '"]';
+                    const parts = [];
+                    let cur = el;
+                    while (cur && cur.nodeType === 1) {{
+                        let idx = 1, sib = cur.previousSibling;
+                        while (sib) {{
+                            if (sib.nodeType === 1 && sib.tagName === cur.tagName) idx++;
+                            sib = sib.previousSibling;
+                        }}
+                        parts.unshift(cur.tagName.toLowerCase() + '[' + idx + ']');
+                        cur = cur.parentElement;
+                    }}
+                    return '/' + parts.join('/');
+                }}
+                const all = Array.from(document.querySelectorAll('a, button, [role="menuitem"]'))
+                    .filter(e => e.offsetParent !== null);   // visible elements only
+                // Exact match first; fall back to contains so partial labels still work
+                const el = all.find(e => e.textContent.trim() === "{js_desc}")
+                         || all.find(e => e.textContent.trim().includes("{js_desc}"));
+                if (el) {{
+                    el.click();
+                    return {{found: true, id: el.id || '', xpath: getXPath(el)}};
+                }}
+                return {{found: false, id: '', xpath: ''}};
             }}""")
             if js_result and js_result.get("found"):
-                el_id = js_result.get("id", "")
-                if el_id:
-                    try:
-                        loc = page.locator(f"#{el_id}").first
-                        self._last_selectors = self._extract_selectors(loc)
-                    except Exception:
-                        pass
+                el_xpath = js_result.get("xpath", "")
+                # Always use the JS-computed XPath directly — _extract_selectors()
+                # can return [] when the page is mid-navigation (e.g. Save button
+                # that submits the form) because the element is gone by the time
+                # the locator evaluates. el_xpath is already computed in the same
+                # synchronous JS call as the click, so it's always accurate.
+                if el_xpath:
+                    self._last_selectors = [{"type": "xpath", "value": el_xpath,
+                                             "successes": 1, "failures": 0}]
                 return f"clicked '{element_description}' (js)"
         except Exception:
             pass

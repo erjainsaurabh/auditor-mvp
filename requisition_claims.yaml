@@ -120,7 +120,7 @@ flows:
               confirm the Requesting Agency field shows the selected agency (not empty).
               Do not interact with Division or any other field.
             data:
-              requesting_agency: "Department of Homeless Services"
+              requesting_agency: "{{requesting_agency}}"
             depends_on: [req_013]
 
           - id: req_015
@@ -141,7 +141,7 @@ flows:
               test data. After typing, results appear in a dropdown — click the matching suggestion.
               Then call read_page and confirm the Division field shows the selected division value.
             data:
-              division: "Chief of Staff"
+              division: "{{division}}"
             depends_on: [req_015]
 
           - id: req_017
@@ -153,7 +153,7 @@ flows:
               or fill_field. Then call read_page and confirm the Contract Type field shows the
               selected value.
             data:
-              contract_type: "General Contract (CT1)"
+              contract_type: "{{contract_type}}"
             depends_on: [req_016]
 
           - id: req_018
@@ -186,7 +186,7 @@ flows:
               Fill the Label field with the label from test data. Call read_page and confirm
               the Label field shows the entered value.
             data:
-              label: "Test Requisition MVP"
+              label: "{{label}}"
 
           - id: req_020
             description: "Anticipated Contract Period dates are filled"
@@ -198,8 +198,8 @@ flows:
               heading). Do NOT click the calendar icon or open a date picker.
               Call read_page and confirm both date inputs show date values.
             data:
-              contract_period_start: "6/1/2026"
-              contract_period_end: "5/31/2027"
+              contract_period_start: "{{contract_period_start}}"
+              contract_period_end: "{{contract_period_end}}"
             depends_on: [req_019]
 
           - id: req_021
@@ -211,7 +211,7 @@ flows:
               call read_page to see the suggestion list, then click the matching suggestion.
               Confirm the Funding Type field shows the selected value.
             data:
-              funding_type: "Expense"
+              funding_type: "{{funding_type}}"
             depends_on: [req_020]
 
           - id: req_022
@@ -222,7 +222,7 @@ flows:
               Description / Executive Summary text area with the description from test data.
               Call read_page and confirm the text area shows the entered text.
             data:
-              procurement_description: "Test procurement for auditor MVP verification"
+              procurement_description: "{{procurement_description}}"
             depends_on: [req_021]
 
           - id: req_023
@@ -246,10 +246,10 @@ flows:
             description: "Procurement Method Questionnaire section is visible on the saved requisition"
             type: existence
             expected: >
-              Navigate to the requisition URL provided in session data (requisition_url).
-              Once on the saved requisition page, click the 'Procurement Method' tab in the
-              left panel navigation to open the PMQ section. Confirm a
-              'Procurement Method Questionnaire' section is visible containing an
+              The browser is already on the saved requisition page from the previous save —
+              do NOT navigate. Call read_page first to confirm the current page. Then click
+              the 'Procurement Method' tab in the left panel navigation to open the PMQ section.
+              Confirm a 'Procurement Method Questionnaire' section is visible containing an
               Estimated Total Cost field and a PM Req field showing the requisition number.
 
           - id: req_025
@@ -267,10 +267,15 @@ flows:
             expected: >
               on the PMQ tab (do NOT navigate away), fill the Procurement Method field using
               fill_field('Procurement Method', 'Emergency'). After fill_field, call read_page
-              to see the suggestion list, then click 'Emergency' to select it. Confirm the
-              Procurement Method field now shows 'Emergency' as the selected value.
+              to see the suggestion list, then click 'Emergency' to select it. Call read_page
+              once and confirm the Procurement Method field shows 'Emergency' as the selected
+              value (you will see the text 'Emergency' next to a 'Delete the value.' button).
+              Call verify_claim immediately once that is confirmed.
+              STOP — do NOT press End/PageDown/Home. Do NOT click Yes or No for any
+              conditional questions. Do NOT look for three questions — that is background
+              context only, not a verification requirement.
             data:
-              procurement_method: "Emergency"
+              procurement_method: "{{procurement_method}}"
             depends_on: [req_025]
 
           - id: req_027
@@ -293,7 +298,7 @@ flows:
               suggestions, then click the matching vendor. Confirm the Vendor field shows
               the selected vendor.
             data:
-              vendor_search: "yard"
+              vendor_search: "{{vendor_search}}"
             depends_on: [req_027]
 
           - id: req_029

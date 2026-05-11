@@ -1,0 +1,15 @@
+# Test data for requisition_claims.yaml
+# Environment-specific values — change these when running against a different
+# Ivalua tenant, staging environment, or test dataset.
+# Referenced in claims.yaml via {{key}} placeholders.
+
+requesting_agency: "Department of Homeless Services"
+division: "Chief of Staff"
+contract_type: "General Contract (CT1)"
+funding_type: "Expense"
+label: "Test Requisition MVP"
+contract_period_start: "6/1/2026"
+contract_period_end: "5/31/2027"
+procurement_description: "Test procurement for auditor MVP verification"
+procurement_method: "Emergency"
+vendor_search: "yard"

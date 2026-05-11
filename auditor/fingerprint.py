@@ -96,6 +96,26 @@ class FingerprintRouter:
                 seen.add(id(store))
 
 
+_DYNAMIC_ID_RE = re.compile(r'\d{5,}')
+"""Matches any sequence of 5+ consecutive digits.
+
+Assertions containing such sequences are run-specific identifiers (record
+numbers, ticket IDs, timestamps, etc.) that change on every run and must
+never be stored in fingerprints.  Examples that are filtered out:
+  "REQ262374"              → 6 digits
+  "Requisition: REQ262374" → 6 digits embedded in a longer string
+  "INC0001234"             → 7 digits
+  "CNTR-2026-001234"       → 6 digits
+  "2026-05-11"             → date (only 4 digits per segment — not filtered)
+  "Create Sourcing Req."   → no digits — kept
+"""
+
+
+def is_dynamic_assertion(s: str) -> bool:
+    """Return True if *s* contains a run-specific numeric ID and should not be stored."""
+    return bool(_DYNAMIC_ID_RE.search(s))
+
+
 def extract_assertions(reasoning: str, snapshot: str) -> list[str]:
     """Pull quoted terms from LLM reasoning that also appear in the page snapshot.
 
@@ -103,6 +123,10 @@ def extract_assertions(reasoning: str, snapshot: str) -> list[str]:
     LLM phrasing style doesn't cause empty assertion lists.  Only terms that
     actually appear in the current snapshot are stored — this keeps assertions
     live and avoids storing stale strings.
+
+    Dynamic IDs (strings containing 5+ consecutive digits — record numbers,
+    ticket IDs, etc.) are filtered out at recording time so fingerprints stay
+    stable across runs that create different records.
     """
     # Collect candidates from both quote styles; deduplicate by lower-case value
     double_quoted = re.findall(r'"([^"]{3,60})"', reasoning)
@@ -113,6 +137,8 @@ def extract_assertions(reasoning: str, snapshot: str) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
     for q in candidates:
+        if is_dynamic_assertion(q):
+            continue          # skip run-specific IDs — they'll never match next run
         q_lower = q.lower()
         if q_lower not in seen and q_lower in snapshot_lower:
             seen.add(q_lower)

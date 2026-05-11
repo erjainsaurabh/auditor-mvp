@@ -14,7 +14,7 @@ from auditor.agent import run_step
 from auditor.fingerprint import FingerprintRouter, FingerprintStore
 from auditor.graph import build_step_graph, cascade_step_failure, mark_steps_blocked, step_execution_order
 from auditor.llm_client import LLMClient
-from auditor.loader import StepStatus, load_flows
+from auditor.loader import StepStatus, load_flows, load_test_data
 from auditor.report import print_summary, write_report
 from auditor.tools import BrowserSession
 
@@ -37,9 +37,21 @@ console = Console()
 
 
 def main() -> None:
-    # Accept one or more YAML files: python run.py login.yaml requisition_claims.yaml
-    yaml_paths = [Path(p) for p in sys.argv[1:]] if len(sys.argv) > 1 else [Path("claims.yaml")]
+    # Accept one or more YAML files plus an optional --data flag:
+    #   python run.py login.yaml requisition_claims.yaml
+    #   python run.py login.yaml requisition_claims.yaml --data test_data.yaml
+    args = sys.argv[1:]
+    data_path: Path | None = None
+    if "--data" in args:
+        idx = args.index("--data")
+        data_path = Path(args[idx + 1])
+        args = args[:idx] + args[idx + 2:]
+    yaml_paths = [Path(p) for p in args] if args else [Path("claims.yaml")]
     config_path = Path("config.yaml")
+
+    # Fall back to test_data.yaml in the current directory if --data not given
+    if data_path is None and Path("test_data.yaml").exists():
+        data_path = Path("test_data.yaml")
 
     for p in yaml_paths:
         if not p.exists():
@@ -47,7 +59,9 @@ def main() -> None:
             sys.exit(1)
 
     config = yaml.safe_load(config_path.read_text())
-    flow_file = load_flows(*yaml_paths)
+    flow_file = load_flows(*yaml_paths, test_data_path=data_path)
+    if data_path:
+        console.print(f"  test data: {data_path}")
     run_id = f"run_{uuid.uuid4().hex[:8]}"
     output_dir = Path(config["evidence"]["output_dir"])
 
