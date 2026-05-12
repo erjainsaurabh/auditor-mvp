@@ -1,7 +1,11 @@
-# Test data for requisition_claims.yaml
+# Test data for all flows — login credentials + requisition form values.
 # Environment-specific values — change these when running against a different
 # Ivalua tenant, staging environment, or test dataset.
-# Referenced in claims.yaml via {{key}} placeholders.
+# Referenced in YAML files via {{key}} placeholders.
+
+# Login credentials (never sent to the LLM — masked in data context)
+app_username: "DHSACCOSTAFFADMINTWO@doitt.nyc.gov"
+app_password: "Change4hhs"
 
 requesting_agency: "Department of Homeless Services"
 division: "Chief of Staff"

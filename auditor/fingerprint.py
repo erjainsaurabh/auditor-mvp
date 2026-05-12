@@ -27,8 +27,8 @@ class ActionRecord(BaseModel):
     assertions: list[str] = Field(default_factory=list)
 
 
-class ClaimFingerprint(BaseModel):
-    claim_id: str
+class StepFingerprint(BaseModel):
+    step_id: str
     recorded_at: str
     run_id: str
     verdict: str
@@ -40,26 +40,26 @@ class ClaimFingerprint(BaseModel):
 class FingerprintStore:
     def __init__(self, path: Path) -> None:
         self._path = path
-        self._store: dict[str, ClaimFingerprint] = {}
+        self._store: dict[str, StepFingerprint] = {}
         if path.exists():
             raw = yaml.safe_load(path.read_text()) or {}
-            for claim_id, data in (raw.get("claims") or {}).items():
+            for step_id, data in (raw.get("steps") or {}).items():
                 try:
-                    self._store[claim_id] = ClaimFingerprint.model_validate(data)
+                    self._store[step_id] = StepFingerprint.model_validate(data)
                 except Exception:
                     pass  # skip corrupt entries
 
-    def get(self, claim_id: str) -> ClaimFingerprint | None:
-        return self._store.get(claim_id)
+    def get(self, step_id: str) -> StepFingerprint | None:
+        return self._store.get(step_id)
 
-    def record(self, fp: ClaimFingerprint) -> None:
-        self._store[fp.claim_id] = fp
+    def record(self, fp: StepFingerprint) -> None:
+        self._store[fp.step_id] = fp
 
     def save(self) -> None:
         data = {
-            "claims": {
-                cid: fp.model_dump()
-                for cid, fp in self._store.items()
+            "steps": {
+                sid: fp.model_dump()
+                for sid, fp in self._store.items()
             }
         }
         self._path.write_text(
@@ -71,19 +71,19 @@ class FingerprintRouter:
     """Routes fingerprint reads across all stores, writes to the correct per-YAML store."""
 
     def __init__(self, stores: list[tuple[FingerprintStore, set[str]]]) -> None:
-        # stores: list of (store, {claim_ids that belong to it})
+        # stores: list of (store, {step_ids that belong to it})
         self._stores = stores
         self._id_to_store: dict[str, FingerprintStore] = {}
-        for store, claim_ids in stores:
-            for cid in claim_ids:
-                self._id_to_store[cid] = store
+        for store, step_ids in stores:
+            for sid in step_ids:
+                self._id_to_store[sid] = store
 
-    def get(self, claim_id: str) -> ClaimFingerprint | None:
-        store = self._id_to_store.get(claim_id)
-        return store.get(claim_id) if store else None
+    def get(self, step_id: str) -> StepFingerprint | None:
+        store = self._id_to_store.get(step_id)
+        return store.get(step_id) if store else None
 
-    def record(self, fp: ClaimFingerprint) -> None:
-        store = self._id_to_store.get(fp.claim_id)
+    def record(self, fp: StepFingerprint) -> None:
+        store = self._id_to_store.get(fp.step_id)
         if store:
             store.record(fp)
             store.save()

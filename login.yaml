@@ -1,16 +1,21 @@
 flows:
   - id: flow_login
     description: "Authenticate to the application — shared prerequisite for all flows"
-    steps:
-      - id: step_login
+    test_conditions:
+      - id: tc_login
         goal: "Log in with valid credentials and confirm home page loads"
-        navigation: "/"
-        claims:
-          - id: login_001
+        execution:
+          navigation: "/"
+        steps:
+          - id: step_001
             description: "Login succeeds and the home page loads with main navigation"
             type: transition
             expected: "the home page loads showing a main navigation menu with items such as Requisition, Contracts, Vendors, or similar"
-            setup:
-              - fill_field: {label: "Email Address", value: "$APP_USERNAME"}
-              - fill_field: {label: "Password", value: "$APP_PASSWORD"}
-            action: submit_form
+            data:
+              app_username: "{{app_username}}"
+              app_password: "{{app_password}}"
+            execution:
+              setup:
+                - fill_field: {label: "Email Address", value: "{{app_username}}"}
+                - fill_field: {label: "Password",       value: "{{app_password}}"}
+              action: submit_form

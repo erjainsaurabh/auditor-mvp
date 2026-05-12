@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
 from datetime import datetime, timezone
@@ -22,15 +21,15 @@ from rich.rule import Rule
 from auditor.evidence import EvidenceCollector
 from auditor.fingerprint import (
     ActionRecord,
-    ClaimFingerprint,
     FingerprintRouter,
     FingerprintStore,
     SelectorRecord,
+    StepFingerprint,
     extract_assertions,
 )
-from auditor.graph import build_claim_graph, cascade_claim_failure, claim_execution_order, mark_claims_blocked
+from auditor.graph import build_step_graph, cascade_step_failure, mark_steps_blocked, step_execution_order
 from auditor.llm_client import LLMClient
-from auditor.loader import Claim, ClaimStatus, OutputCapture, Step, StepStatus
+from auditor.loader import ConditionStatus, OutputCapture, Step, StepStatus, TestCondition
 from auditor.tools import BrowserSession
 
 console = Console()
@@ -239,13 +238,13 @@ def _templatize_actions(actions: list[ActionRecord], session_data: dict[str, str
 
 
 def _try_fingerprint_replay(
-    claim: Claim,
+    step: Step,
     session: BrowserSession,
     evidence: EvidenceCollector,
-    fp: ClaimFingerprint,
+    fp: StepFingerprint,
     snap: dict[str, str],
     session_data: dict[str, str] | None = None,
-) -> ClaimStatus | None:
+) -> StepStatus | None:
     """
     Replay a fingerprint without calling the LLM.
     Returns ClaimStatus on success, None if replay fails (triggers ReAct fallback).
@@ -285,7 +284,7 @@ def _try_fingerprint_replay(
 
         elif tool == "take_screenshot":
             label = args.get("label", "replay")
-            evidence.save_screenshot(session.page, f"{claim.id}_{label}")
+            evidence.save_screenshot(session.page, f"{step.id}_{label}")
 
         elif tool == "verify_claim":
             # Check assertions against current page before accepting the stored verdict
@@ -306,14 +305,14 @@ def _try_fingerprint_replay(
             confidence = args.get("confidence", "high")
             reasoning = args.get("reasoning", "replayed from fingerprint")
             evidence.set_verdict(verdict, confidence, f"[replay] {reasoning[:200]}")
-            claim.status = ClaimStatus(verdict)
-            return claim.status
+            step.status = StepStatus(verdict)
+            return step.status
 
     return None  # no verify_claim found in fingerprint
 
 
-def run_step(
-    step: Step,
+def run_test_condition(
+    tc: TestCondition,
     session: BrowserSession,
     llm: LLMClient,
     output_dir: Path,
@@ -321,60 +320,63 @@ def run_step(
     max_actions: int,
     session_data: dict[str, str] | None = None,
     fp_store: FingerprintStore | FingerprintRouter | None = None,
-) -> tuple[StepStatus, list[dict], dict[str, str]]:
+) -> tuple[ConditionStatus, list[dict], dict[str, str]]:
     session_data = session_data or {}
-    console.print(Rule(f"[bold blue]{step.id}[/bold blue] — {step.goal}", style="blue"))
+    console.print(Rule(f"[bold blue]{tc.id}[/bold blue] — {tc.goal}", style="blue"))
 
-    # Log any session data this step is receiving
-    available = {k: v for k, v in session_data.items() if k in step.input}
+    # Log any session data this test condition is receiving
+    available = {k: v for k, v in session_data.items() if k in tc.execution.input}
     if available:
         for k, v in available.items():
             console.print(f"    [dim]session_data:[/dim] {k} = {v}")
 
-    claim_graph = build_claim_graph(step.claims)
-    order = claim_execution_order(claim_graph)
-    claim_map = step.claim_map
+    step_graph = build_step_graph(tc.steps)
+    order = step_execution_order(step_graph)
+    step_map = tc.step_map
 
     messages: list[dict[str, Any]] = []
     read_page_ids: list[str] = []
     evidence_records: list[dict] = []
-    first_claim = True
+    first_step = True
 
-    for claim_id in order:
-        claim = claim_map[claim_id]
+    # Reset focused-snapshot anchor once per TEST CONDITION, not per step.
+    # Steps within the same test condition share browser state — letting the
+    # fill_field focus from one step carry into the next one is intentional:
+    # it gives the LLM the correct focused view without re-filling fields
+    # (e.g. step_026 fills Procurement Method → step_027 reads PMQ questions).
+    session._last_interacted_label = ""
 
-        if claim.status == ClaimStatus.blocked:
-            console.print(f"    [yellow]⊘[/yellow] {claim_id} — blocked")
+    for step_id in order:
+        step = step_map[step_id]
+
+        if step.status == StepStatus.blocked:
+            console.print(f"    [yellow]⊘[/yellow] {step_id} — blocked")
             continue
 
-        console.print(Rule(f"[bold]{claim_id}[/bold] — {claim.description} [dim][{_ts()}][/dim]", style="dim"))
-        console.print(f"    [dim]expected:[/dim] {claim.expected}")
+        console.print(Rule(f"[bold]{step_id}[/bold] — {step.description} [dim][{_ts()}][/dim]", style="dim"))
+        console.print(f"    [dim]expected:[/dim] {step.expected}")
 
-        ev = EvidenceCollector(run_id=run_id, claim_id=claim_id, output_dir=output_dir)
-
-        # Reset focused-snapshot anchor so a prior claim's fill doesn't
-        # skew the viewport for the first read_page of this claim.
-        session._last_interacted_label = ""
+        ev = EvidenceCollector(run_id=run_id, claim_id=step_id, output_dir=output_dir)
 
         # Get stored fingerprint now (needed by _run_setup for fast-fill)
-        fp_for_claim = fp_store.get(claim.id) if fp_store else None
-        setup_log, setup_records = _run_setup(claim, session, ev, fp_for_claim, step.navigation)
+        fp_for_step = fp_store.get(step.id) if fp_store else None
+        setup_log, setup_records = _run_setup(step, session, ev, fp_for_step, tc.execution.navigation)
         if setup_log:
             console.print(f"    [dim]setup:[/dim] {'; '.join(setup_log)}")
             for sr in setup_records:
                 _log_selectors(sr.selectors)
 
-        # Build the user message for this claim, continuing the shared conversation
+        # Build the user message for this step, continuing the shared conversation
         if setup_log:
             nav_context = (
                 f"Setup already completed: {'; '.join(setup_log)}. "
                 f"You are already on the correct page — do NOT navigate away. "
                 f"Proceed directly to verifying the claim.\n"
             )
-        elif first_claim:
+        elif first_step:
             if available:
                 data_str = "\n".join(f"  {k}: {v}" for k, v in available.items())
-                nav_hint = f"\n  start at: {step.navigation}" if step.navigation else ""
+                nav_hint = f"\n  start at: {tc.execution.navigation}" if tc.execution.navigation else ""
                 current_browser = session_data.get("_last_url", "")
                 if current_browser:
                     nav_context = (
@@ -391,54 +393,58 @@ def run_step(
                         f"Use this data to navigate directly if relevant"
                         f"{nav_hint}\n"
                     )
-            elif step.depends_on and session_data.get("_last_url"):
+            elif tc.depends_on and session_data.get("_last_url"):
                 last_url = session_data["_last_url"]
                 last_title = session_data.get("_last_title", "")
                 title_hint = f" ({last_title})" if last_title else ""
                 nav_context = (
                     f"Browser is currently at: {last_url}{title_hint}. "
-                    f"Page state from the previous step is preserved — do NOT navigate away "
+                    f"Page state from the previous test condition is preserved — do NOT navigate away "
                     f"unless this is the wrong page. "
-                    + (f"Navigation hint if needed: {step.navigation}\n" if step.navigation else "\n")
+                    + (f"Navigation hint if needed: {tc.execution.navigation}\n" if tc.execution.navigation else "\n")
                 )
             else:
                 nav_context = (
-                    f"Start by navigating to: {step.navigation}\n"
-                    if step.navigation else
+                    f"Start by navigating to: {tc.execution.navigation}\n"
+                    if tc.execution.navigation else
                     "Navigate to the appropriate page to begin verification.\n"
                 )
         else:
             current_url = session.current_url()
             nav_context = (
-                f"You are continuing from the previous claim. "
+                f"You are continuing from the previous step. "
                 f"Browser is currently at: {current_url}. "
-                f"The page state from the previous claim is preserved — do NOT navigate away. "
+                f"The page state from the previous step is preserved — do NOT navigate away. "
                 f"Proceed directly with verifying this claim from the current page.\n"
             )
 
         data_context = ""
-        if claim.data:
-            data_lines = "\n".join(f"  {k}: {v}" for k, v in claim.data.items())
+        if step.data:
+            _sensitive = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
+            data_lines = "\n".join(
+                f"  {k}: {'****' if _sensitive.search(k) else v}"
+                for k, v in step.data.items()
+            )
             data_context = f"Test data (use these exact values):\n{data_lines}\n"
 
         messages.append({
             "role": "user",
             "content": (
-                f"Claim: {claim.description}\n"
-                f"Expected outcome: {claim.expected}\n"
+                f"Claim: {step.description}\n"
+                f"Expected outcome: {step.expected}\n"
                 + data_context
                 + nav_context
                 + "Verify this claim and call verify_claim when done."
             ),
         })
 
-        first_claim = False
+        first_step = False
         console.print(f"    [dim]starting ReAct loop (max {max_actions} steps)… [{_ts()}][/dim]")
 
-        claim_start = time.perf_counter()
+        step_start = time.perf_counter()
         snap: dict[str, str] = {}
         status = _react_loop(
-            claim=claim,
+            step=step,
             session=session,
             llm=llm,
             evidence=ev,
@@ -449,7 +455,7 @@ def run_step(
             fp_store=fp_store,
             run_id=run_id,
             setup_records=setup_records,
-            fp_for_claim=fp_for_claim,
+            fp_for_step=fp_for_step,
             session_data=session_data,
         )
         # Prefer live browser URL (works for fingerprint replay + ReAct alike)
@@ -460,37 +466,37 @@ def run_step(
         record = ev.finalize()
         evidence_records.append(record)
 
-        icon = {"verified": "[green]✓[/green]", "failed": "[red]✗[/red]"}.get(str(status), "[yellow]⊘[/yellow]")
-        console.print(f"    {icon} {claim_id} — {status} [dim]({_elapsed(claim_start)})[/dim]")
+        icon = {"verified": "[green]✓[/green]", "failed": "[red]✗[/red]"}.get(status.value, "[yellow]⊘[/yellow]")
+        console.print(f"    {icon} {step_id} — {status.value} [dim]({_elapsed(step_start)})[/dim]")
 
-        if status in (ClaimStatus.failed, ClaimStatus.blocked):
-            blocked = cascade_claim_failure(claim_graph, claim_id)
-            mark_claims_blocked(step.claims, set(blocked))
+        if status in (StepStatus.failed, StepStatus.blocked):
+            blocked = cascade_step_failure(step_graph, step_id)
+            mark_steps_blocked(tc.steps, set(blocked))
             if blocked:
                 console.print(f"    [dim]cascading block to: {', '.join(blocked)}[/dim]")
 
-    # Determine step status
-    statuses = [claim_map[cid].status for cid in order]
-    if any(s == ClaimStatus.failed for s in statuses):
-        step.status = StepStatus.failed
-    elif all(s in (ClaimStatus.verified, ClaimStatus.unverifiable) for s in statuses):
-        step.status = StepStatus.verified
+    # Determine test condition status
+    statuses = [step_map[sid].status for sid in order]
+    if any(s == StepStatus.failed for s in statuses):
+        tc.status = ConditionStatus.failed
+    elif all(s in (StepStatus.verified, StepStatus.unverifiable) for s in statuses):
+        tc.status = ConditionStatus.verified
     else:
-        step.status = StepStatus.failed
+        tc.status = ConditionStatus.failed
 
-    # Run output captures — only if step passed
+    # Run output captures — only if test condition passed
     captured: dict[str, str] = {}
-    if step.status == StepStatus.verified and step.output_capture:
-        captured = _execute_captures(step.output_capture, session_data)
+    if tc.status == ConditionStatus.verified and tc.execution.output_capture:
+        captured = _execute_captures(tc.execution.output_capture, session_data)
         session_data.update(captured)
         for k, v in captured.items():
             console.print(f"    [dim]captured:[/dim] {k} = {v}")
 
-    return step.status, evidence_records, session_data
+    return tc.status, evidence_records, session_data
 
 
 def _react_loop(
-    claim: Claim,
+    step: Step,
     session: BrowserSession,
     llm: LLMClient,
     evidence: EvidenceCollector,
@@ -501,16 +507,16 @@ def _react_loop(
     fp_store: FingerprintStore | FingerprintRouter | None = None,
     run_id: str = "",
     setup_records: list[ActionRecord] | None = None,
-    fp_for_claim: ClaimFingerprint | None = None,
+    fp_for_step: StepFingerprint | None = None,
     session_data: dict[str, str] | None = None,
-) -> ClaimStatus:
+) -> StepStatus:
     # --- Tier 1: fingerprint replay (zero LLM calls on stable UI) ---
-    # Claims with setup blocks: setup already ran via _run_setup(); only replay the ReAct actions.
-    # Claims with setup blocks still qualify for replay — _try_fingerprint_replay handles ReAct part.
-    if fp_store and fp_for_claim and fp_for_claim.actions:
+    # Steps with setup blocks: setup already ran via _run_setup(); only replay the ReAct actions.
+    # Steps with setup blocks still qualify for replay — _try_fingerprint_replay handles ReAct part.
+    if fp_store and fp_for_step and fp_for_step.actions:
         console.print(f"    [dim cyan]⚡ trying fingerprint replay… [{_ts()}][/dim cyan]")
         replay_snap: dict[str, str] = snap if snap is not None else {}
-        status = _try_fingerprint_replay(claim, session, evidence, fp_for_claim, replay_snap, session_data)
+        status = _try_fingerprint_replay(step, session, evidence, fp_for_step, replay_snap, session_data)
         if snap is not None:
             snap.update(replay_snap)
         if status is not None:
@@ -519,7 +525,7 @@ def _react_loop(
             messages.append({
                 "role": "assistant",
                 "content": (
-                    f"Claim {claim.id} {status} (fingerprint replay). "
+                    f"Step {step.id} {status} (fingerprint replay). "
                     f"Browser is currently at: {current_url}"
                 ),
             })
@@ -527,7 +533,7 @@ def _react_loop(
             return status
         evidence.set_fingerprint_status("miss")
         console.print(f"    [dim yellow]replay failed → falling back to ReAct[/dim yellow]")
-        claim.status = ClaimStatus.blocked
+        step.status = StepStatus.blocked
 
     # --- Tier 2: full ReAct loop ---
     action_records: list[ActionRecord] = []
@@ -555,7 +561,7 @@ def _react_loop(
             _log_llm_decision(step_num, name, args)
 
             action_start = time.perf_counter()
-            result = _dispatch(name, args, claim, session, evidence)
+            result = _dispatch(name, args, step, session, evidence)
             action_elapsed = time.perf_counter() - action_start
             evidence.log_action(f"{name}({args})", result)
 
@@ -585,12 +591,12 @@ def _react_loop(
 
             if name == "verify_claim":
                 evidence.set_verdict(args["verdict"], args["confidence"], args["reasoning"])
-                claim.status = ClaimStatus(args["verdict"])
+                step.status = StepStatus(args["verdict"])
                 _log_verdict(args["verdict"], args["confidence"], args["reasoning"])
                 if snap is not None:
                     _snap_from_messages(messages, snap)
 
-                # Record fingerprint for all verified claims
+                # Record fingerprint for all verified steps
                 if fp_store and args.get("verdict") == "verified":
                     assertions = extract_assertions(args.get("reasoning", ""), last_snapshot)
                     # Also assert every fill_field value — dates, labels, and typed
@@ -607,8 +613,8 @@ def _react_loop(
                     action_records[-1].assertions = assertions
                     # Replace dynamic session values (e.g. requisition_url) with {{key}} placeholders
                     _templatize_actions(action_records, session_data or {})
-                    fp = ClaimFingerprint(
-                        claim_id=claim.id,
+                    fp = StepFingerprint(
+                        step_id=step.id,
                         recorded_at=datetime.now(timezone.utc).isoformat(),
                         run_id=run_id,
                         verdict=args["verdict"],
@@ -624,21 +630,21 @@ def _react_loop(
                         f"{len(setup_records or [])} setup_records)[/dim cyan]"
                     )
 
-                return claim.status
+                return step.status
 
     console.print(f"    [yellow]max actions reached without verdict → blocked[/yellow]")
-    claim.status = ClaimStatus.blocked
-    return claim.status
+    step.status = StepStatus.blocked
+    return step.status
 
 
 def _run_setup(
-    claim: Claim,
+    step: Step,
     session: BrowserSession,
     evidence: EvidenceCollector,
-    fp: ClaimFingerprint | None = None,
+    fp: StepFingerprint | None = None,
     navigation: str = "",
 ) -> tuple[list[str], list[ActionRecord]]:
-    if not claim.setup and not claim.action:
+    if not step.execution.setup and not step.execution.action:
         return [], []
 
     log: list[str] = []
@@ -647,17 +653,17 @@ def _run_setup(
     # Build an index of stored setup selectors by position for fast replay
     stored = fp.setup_records if fp else []
 
-    nav_target = navigation or claim.navigation
+    nav_target = navigation
     result = session.navigate(nav_target)
     evidence.log_action(f"navigate({nav_target})", result)
     log.append(result)
 
-    for i, step in enumerate(claim.setup):
-        if step.fill_field:
-            label = step.fill_field["label"]
-            value = step.fill_field["value"]
-            if value.startswith("$"):
-                value = os.environ.get(value[1:], "")
+    for i, setup_item in enumerate(step.execution.setup):
+        if setup_item.fill_field:
+            label = setup_item.fill_field["label"]
+            value = setup_item.fill_field["value"]
+            # Resolve {{key}} placeholders from step.data (already expanded from test_data.yaml)
+            value = re.sub(r"\{\{(\w+)\}\}", lambda m: step.data.get(m.group(1), m.group(0)), value)
             masked = "****" if "password" in label.lower() else value
 
             r = None
@@ -682,21 +688,21 @@ def _run_setup(
             log.append(r)
             setup_records.append(ActionRecord(tool="fill_field", args={"field_label": label, "value": masked}, selectors=selectors))
 
-        elif step.click:
-            r = session.click(step.click)
-            evidence.log_action(f"click({step.click!r})", r)
+        elif setup_item.click:
+            r = session.click(setup_item.click)
+            evidence.log_action(f"click({setup_item.click!r})", r)
             log.append(r)
             selectors = [SelectorRecord(**s) for s in session._last_selectors]
-            setup_records.append(ActionRecord(tool="click", args={"element_description": step.click}, selectors=selectors))
+            setup_records.append(ActionRecord(tool="click", args={"element_description": setup_item.click}, selectors=selectors))
 
-        elif step.hover:
-            r = session.hover(step.hover)
-            evidence.log_action(f"hover({step.hover!r})", r)
+        elif setup_item.hover:
+            r = session.hover(setup_item.hover)
+            evidence.log_action(f"hover({setup_item.hover!r})", r)
             log.append(r)
             selectors = [SelectorRecord(**s) for s in session._last_selectors]
-            setup_records.append(ActionRecord(tool="hover", args={"element_description": step.hover}, selectors=selectors))
+            setup_records.append(ActionRecord(tool="hover", args={"element_description": setup_item.hover}, selectors=selectors))
 
-    if claim.action == "submit_form":
+    if step.execution.action == "submit_form":
         r = session.submit_form()
         evidence.log_action("submit_form()", r)
         log.append(r)
@@ -708,7 +714,7 @@ def _run_setup(
 def _dispatch(
     name: str,
     args: dict[str, Any],
-    claim: Claim,
+    step: Step,
     session: BrowserSession,
     evidence: EvidenceCollector,
 ) -> str:
@@ -721,14 +727,17 @@ def _dispatch(
         case "click":
             result = session.click(args["element_description"])
             if not result.startswith("error"):
-                if "(tab)" in result or "(ivalua-listbox)" in result:
-                    # Tab clicks: revealed tabpanel content is elsewhere in the DOM.
-                    # Ivalua-listbox clicks: completing a suggestion selection — the
-                    # LLM needs to see the full form to observe new conditional fields.
-                    # In both cases, reset anchor so next read_page shows the full page.
-                    session._last_interacted_label = ""
+                if "(ivalua-listbox)" in result:
+                    # Listbox selection completes a fill_field operation.
+                    # Preserve _last_interacted_label from the preceding fill_field
+                    # so the next read_page shows a focused view around that field,
+                    # including any conditional questions that just appeared.
+                    pass
                 else:
-                    session._last_interacted_label = args["element_description"].rstrip(" *").strip()
+                    # All other clicks (nav buttons, tabs, save/cancel, Yes/No radios,
+                    # section toggles): show the full page so the LLM sees the result
+                    # without a focused window anchored on the wrong element.
+                    session._last_interacted_label = ""
             return result
         case "hover":
             return session.hover(args["element_description"])
@@ -754,7 +763,7 @@ def _dispatch(
         case "take_screenshot":
             # Highlight last interacted element before saving, then restore
             xpath = session._highlight_last_element()
-            path = evidence.save_screenshot(session.page, f"{claim.id}_{args['label']}")
+            path = evidence.save_screenshot(session.page, f"{step.id}_{args['label']}")
             if xpath:
                 session._unhighlight_element(xpath)
             return path

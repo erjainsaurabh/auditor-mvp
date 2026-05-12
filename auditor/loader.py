@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 _TEMPLATE_RE = re.compile(r"\{\{(\w+)\}\}")
 
 
-class ClaimType(str, Enum):
+class StepType(str, Enum):
     existence = "existence"
     value = "value"
     behavioral = "behavioral"
@@ -22,7 +22,7 @@ class ClaimType(str, Enum):
     cross_module = "cross_module"
 
 
-class ClaimStatus(str, Enum):
+class StepStatus(str, Enum):
     not_started = "not_started"
     in_progress = "in_progress"
     verified = "verified"
@@ -31,7 +31,7 @@ class ClaimStatus(str, Enum):
     unverifiable = "unverifiable"
 
 
-class StepStatus(str, Enum):
+class ConditionStatus(str, Enum):
     not_started = "not_started"
     verified = "verified"
     failed = "failed"
@@ -44,54 +44,69 @@ class SetupStep(BaseModel):
     hover: str | None = None
 
 
-class Claim(BaseModel):
-    id: str
-    description: str
-    type: ClaimType
-    navigation: str = ""   # deprecated — use Step.navigation; kept for backward compat
-    expected: str
-    setup: list[SetupStep] = Field(default_factory=list)
-    action: str | None = None
-    depends_on: list[str] = Field(default_factory=list)
-    data: dict[str, str] = Field(default_factory=dict)   # test data injected into LLM context
-    status: ClaimStatus = ClaimStatus.not_started
-    evidence: dict[str, Any] | None = None
-    unverifiable_reason: str | None = None
-
-
 class OutputCapture(BaseModel):
     key: str
     strategy: str  # "current_url" | "page_title" | "url_segment:N"
 
 
+class StepExecution(BaseModel):
+    """Developer/executor layer — fields a BA does not author."""
+    setup: list[SetupStep] = Field(default_factory=list)
+    action: str | None = None
+
+
+class ConditionExecution(BaseModel):
+    """Developer/executor layer — fields a BA does not author."""
+    navigation: str = ""        # URL path the browser should start at
+    input: list[str] = Field(default_factory=list)               # session_data keys from prior conditions
+    output_capture: list[OutputCapture] = Field(default_factory=list)  # values to capture after this condition
+
+
 class Step(BaseModel):
+    # ── BA/QA layer (what a BA or QA analyst writes) ──────────────────────────
+    id: str
+    description: str
+    type: StepType
+    expected: str
+    depends_on: list[str] = Field(default_factory=list)
+    data: dict[str, str] = Field(default_factory=dict)   # test data injected into LLM context
+    # ── Executor layer (filled in by a developer) ─────────────────────────────
+    execution: StepExecution = Field(default_factory=StepExecution)
+    # ── Runtime state ─────────────────────────────────────────────────────────
+    status: StepStatus = StepStatus.not_started
+    evidence: dict[str, Any] | None = None
+    unverifiable_reason: str | None = None
+
+
+class TestCondition(BaseModel):
+    # ── BA/QA layer ───────────────────────────────────────────────────────────
     id: str
     goal: str
-    navigation: str = ""   # where the browser should be at the start of this step
     depends_on: list[str] = Field(default_factory=list)
-    input: list[str] = Field(default_factory=list)        # session_data keys needed from prior steps
-    output_capture: list[OutputCapture] = Field(default_factory=list)
-    claims: list[Claim] = Field(default_factory=list)
-    status: StepStatus = StepStatus.not_started
+    steps: list[Step] = Field(default_factory=list)
+    # ── Executor layer ────────────────────────────────────────────────────────
+    execution: ConditionExecution = Field(default_factory=ConditionExecution)
+    # ── Runtime state ─────────────────────────────────────────────────────────
+    status: ConditionStatus = ConditionStatus.not_started
 
     @property
-    def claim_map(self) -> dict[str, Claim]:
-        return {c.id: c for c in self.claims}
+    def step_map(self) -> dict[str, Step]:
+        return {s.id: s for s in self.steps}
 
 
 class Flow(BaseModel):
     id: str
     description: str
     depends_on: list[str] = Field(default_factory=list)  # flow IDs
-    steps: list[Step] = Field(default_factory=list)
+    test_conditions: list[TestCondition] = Field(default_factory=list)
 
     @property
-    def step_map(self) -> dict[str, Step]:
-        return {s.id: s for s in self.steps}
+    def test_condition_map(self) -> dict[str, TestCondition]:
+        return {tc.id: tc for tc in self.test_conditions}
 
     @property
-    def all_claims(self) -> list[Claim]:
-        return [c for s in self.steps for c in s.claims]
+    def all_steps(self) -> list[Step]:
+        return [s for tc in self.test_conditions for s in tc.steps]
 
 
 class FlowFile(BaseModel):
@@ -99,12 +114,12 @@ class FlowFile(BaseModel):
     flows: list[Flow] = Field(default_factory=list)
 
     @property
-    def all_steps(self) -> list[Step]:
-        return [s for f in self.flows for s in f.steps]
+    def all_test_conditions(self) -> list[TestCondition]:
+        return [tc for f in self.flows for tc in f.test_conditions]
 
     @property
-    def all_claims(self) -> list[Claim]:
-        return [c for f in self.flows for c in f.all_claims]
+    def all_steps(self) -> list[Step]:
+        return [s for f in self.flows for s in f.all_steps]
 
 
 def _resolve_data(flow_file: FlowFile, test_data: dict[str, str]) -> None:
@@ -132,8 +147,8 @@ def _resolve_data(flow_file: FlowFile, test_data: dict[str, str]) -> None:
             lambda m: test_data.get(m.group(1), m.group(0)), value
         )
 
-    for claim in flow_file.all_claims:
-        claim.data = {k: _sub(v) for k, v in claim.data.items()}
+    for step in flow_file.all_steps:
+        step.data = {k: _sub(v) for k, v in step.data.items()}
 
 
 def load_test_data(path: str | Path | None) -> dict[str, str]:

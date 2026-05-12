@@ -8,17 +8,17 @@ from rich.console import Console
 from rich.rule import Rule
 from rich.table import Table
 
-from auditor.loader import Claim, ClaimStatus, FlowFile
+from auditor.loader import FlowFile, Step, StepStatus
 
 console = Console()
 
 _ICONS = {
-    ClaimStatus.verified:     "[green]✓[/green]",
-    ClaimStatus.failed:       "[red]✗[/red]",
-    ClaimStatus.blocked:      "[yellow]⊘[/yellow]",
-    ClaimStatus.unverifiable: "[dim]?[/dim]",
-    ClaimStatus.not_started:  "[dim]-[/dim]",
-    ClaimStatus.in_progress:  "[blue]~[/blue]",
+    StepStatus.verified:     "[green]✓[/green]",
+    StepStatus.failed:       "[red]✗[/red]",
+    StepStatus.blocked:      "[yellow]⊘[/yellow]",
+    StepStatus.unverifiable: "[dim]?[/dim]",
+    StepStatus.not_started:  "[dim]-[/dim]",
+    StepStatus.in_progress:  "[blue]~[/blue]",
 }
 
 
@@ -26,37 +26,37 @@ def write_report(flow_file: FlowFile, evidence_records: list[dict], run_id: str,
     ev_map = {e["claim_id"]: e for e in evidence_records}
     flows_out = []
     for flow in flow_file.flows:
-        steps_out = []
-        for step in flow.steps:
-            claims_out = [
+        tcs_out = []
+        for tc in flow.test_conditions:
+            steps_out = [
                 {
-                    "id": c.id,
-                    "description": c.description,
-                    "type": c.type,
-                    "status": c.status,
-                    "fingerprint_status": (ev_map.get(c.id) or {}).get("fingerprint_status", "none"),
-                    "evidence": ev_map.get(c.id),
+                    "id": s.id,
+                    "description": s.description,
+                    "type": s.type,
+                    "status": s.status.value,
+                    "fingerprint_status": (ev_map.get(s.id) or {}).get("fingerprint_status", "none"),
+                    "evidence": ev_map.get(s.id),
                 }
-                for c in step.claims
+                for s in tc.steps
             ]
-            steps_out.append({
-                "id": step.id,
-                "goal": step.goal,
-                "status": step.status,
-                "claims": claims_out,
+            tcs_out.append({
+                "id": tc.id,
+                "goal": tc.goal,
+                "status": tc.status.value,
+                "steps": steps_out,
             })
         flows_out.append({
             "id": flow.id,
             "description": flow.description,
-            "steps": steps_out,
+            "test_conditions": tcs_out,
         })
 
-    all_claims = flow_file.all_claims
+    all_steps = flow_file.all_steps
     report = {
         "run_id": run_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "summary": {
-            **_summary(all_claims),
+            **_summary(all_steps),
             "fingerprint_hits": sum(1 for e in evidence_records if e.get("fingerprint_status") == "hit"),
             "fingerprint_misses": sum(1 for e in evidence_records if e.get("fingerprint_status") == "miss"),
             "fingerprint_none": sum(1 for e in evidence_records if e.get("fingerprint_status") == "none"),
@@ -73,8 +73,8 @@ _FP_ICONS = {
 }
 
 
-def print_summary(claims: list[Claim], evidence_records: list[dict], run_id: str) -> None:
-    s = _summary(claims)
+def print_summary(steps: list[Step], evidence_records: list[dict], run_id: str) -> None:
+    s = _summary(steps)
 
     console.print(Rule(style="dim"))
     console.print(f"\n[bold]Run:[/bold] {run_id}")
@@ -104,22 +104,22 @@ def print_summary(claims: list[Claim], evidence_records: list[dict], run_id: str
     table.add_column("Fingerprint", width=10)
 
     ev_map = {e["claim_id"]: e for e in evidence_records}
-    for c in claims:
-        ev = ev_map.get(c.id, {})
+    for s in steps:
+        ev = ev_map.get(s.id, {})
         confidence = ev.get("confidence", "")
         fp_status = ev.get("fingerprint_status", "none")
         fp_cell = _FP_ICONS.get(fp_status, "[dim]—[/dim]")
-        table.add_row(_ICONS[c.status], c.id, c.description, confidence, fp_cell)
+        table.add_row(_ICONS[s.status], s.id, s.description, confidence, fp_cell)
 
     console.print(table)
 
 
-def _summary(claims: list[Claim]) -> dict:
-    statuses = [c.status for c in claims]
+def _summary(steps: list[Step]) -> dict:
+    statuses = [s.status for s in steps]
     return {
-        "total": len(claims),
-        "verified": statuses.count(ClaimStatus.verified),
-        "failed": statuses.count(ClaimStatus.failed),
-        "blocked": statuses.count(ClaimStatus.blocked),
-        "unverifiable": statuses.count(ClaimStatus.unverifiable),
+        "total": len(steps),
+        "verified": statuses.count(StepStatus.verified),
+        "failed": statuses.count(StepStatus.failed),
+        "blocked": statuses.count(StepStatus.blocked),
+        "unverifiable": statuses.count(StepStatus.unverifiable),
     }

@@ -4,42 +4,9 @@ Status key: `✓ done` · `← current` · `○ pending`
 
 ---
 
-## In Progress / Next Up
+## Next Up
 
-- `←` **Revisit four agent modes** — assess whether Comprehension, Flow Navigation,
-  Verification, and Data Capture should become explicit code boundaries or stay
-  implicit. Determine if any mode needs design changes before V1.3 fingerprint
-  work begins. Outcome shapes where the fingerprint engine plugs in.
-
----
-
-## Pending
-
-- `○` **Fix click/hover disambiguation** — add optional `role` parameter to `click()` and
-  `hover()` in `tools.py`; return richer confirmation (role + context) so the LLM knows
-  what it actually clicked. Update tool definition in `llm_client.py` to expose `role`.
-  Fixes the case where two elements share similar text (e.g., "Financials" tab vs
-  "Financial Change Request" nav link) and `.first` picks the wrong one silently.
-
-- `○` **Add missing UI actions to `tools.py`**
-  - `select_option` — choose a value in `<select>` / custom picklist (currently `get_field_options` reads but cannot select)
-  - `check` / `uncheck` — checkboxes and toggle switches
-  - `double_click` — some SaaS UIs open records on double-click
-  - `press_key` — Escape (close modals), Tab (next field), keyboard shortcuts
-  - `scroll` — reveal lazy-loaded content or off-screen elements
-  - `wait_for_element` — explicit wait when networkidle isn't sufficient
-  - `drag_and_drop` — kanban boards, reordering
-  - `iframe_context` — switch into embedded iframes
-
-- `○` **V1.3 — Execution fingerprint layer**
-  - `fingerprints.yaml` schema and read/write logic
-  - Selector extraction in `tools.py` at action-success time (XPath, aria, CSS)
-  - Three-tier replay in `agent.py`: primary selector → alternatives → ReAct fallback
-  - Confidence matrix (`successes`, `failures`, `confidence`) updated after every run
-  - Drift detection: warn when selector confidence drops below 0.7
-  - Fingerprint written only on successful ReAct verdict; never on failed/blocked
-
-- `○` **V1.4 — LLM claim extraction**
+- `←` **V1.4 — LLM claim extraction**
   - Paste spec text → LLM generates `claims.yaml`
   - Replaces manual YAML authoring; everything downstream stays identical
 
@@ -61,6 +28,26 @@ Status key: `✓ done` · `← current` · `○ pending`
 
 ---
 
+## Pending (tooling improvements)
+
+- `○` **Fix click/hover disambiguation** — add optional `role` parameter to `click()` and
+  `hover()` in `tools.py`; return richer confirmation (role + context) so the LLM knows
+  what it actually clicked. Update tool definition in `llm_client.py` to expose `role`.
+  Fixes the case where two elements share similar text (e.g., "Financials" tab vs
+  "Financial Change Request" nav link) and `.first` picks the wrong one silently.
+
+- `○` **Add missing UI actions to `tools.py`**
+  - `select_option` — choose a value in `<select>` / custom picklist (currently `get_field_options` reads but cannot select)
+  - `check` / `uncheck` — checkboxes and toggle switches
+  - `double_click` — some SaaS UIs open records on double-click
+  - `press_key` — Escape (close modals), Tab (next field), keyboard shortcuts
+  - `scroll` — reveal lazy-loaded content or off-screen elements
+  - `wait_for_element` — explicit wait when networkidle isn't sufficient
+  - `drag_and_drop` — kanban boards, reordering
+  - `iframe_context` — switch into embedded iframes
+
+---
+
 ## Spec gaps to address before V2.0
 
 These are in `AUDITOR_AGENT_FRAMEWORK.md` but not yet implemented:
@@ -74,5 +61,17 @@ These are in `AUDITOR_AGENT_FRAMEWORK.md` but not yet implemented:
 ## Completed
 
 - `✓` **MVP** — flat YAML claims, single ReAct loop per claim, evidence + report
-- `✓` **V1.1** — flows → steps → claims hierarchy, shared LLM context within a step, message pruning
+- `✓` **V1.1** — flows → test conditions → steps hierarchy, shared LLM context within a test condition, message pruning
 - `✓` **V1.2** — session state capture (`current_url`, `page_title`, `url_segment:N`), data handoff between steps
+- `✓` **V1.3** — Execution fingerprint layer: selector recording, three-tier replay, confidence matrix, drift detection, dynamic-ID filtering at recording time
+- `✓` **Test data decoupling** — `{{key}}` placeholders in claims.yaml resolved from `test_data.yaml`; `--data` flag + auto-detection in `run.py`
+- `✓` **Claims spec cleanup** — all `expected` fields rewritten to BA-readable natural language outcomes; tool syntax, nav directives, LLM guardrails moved to system prompt
+- `✓` **System prompt hardening** — SCOPE RULE, BROWSER STATE RULE, BEHAVIORAL CLAIM RULE added; interaction rules generalized (no hardcoded values)
+- `✓` **Bug: click focused-snapshot wrong anchor** — `click()` now resets `_last_interacted_label = ""`; ivalua-listbox clicks preserve the label from the preceding `fill_field` so conditional questions stay visible
+- `✓` **Bug: focused-snapshot reset at wrong boundary** — label reset moved from per-claim to per-step so fill context from one claim carries into the next within the same step
+- `✓` **Bug: JS click hid wrong button** — added `e.offsetParent !== null` visibility filter + exact-before-contains matching in JS fallback
+- `✓` **Bug: dynamic REQ IDs stored as assertions** — `is_dynamic_assertion()` filter added to `extract_assertions()` in `fingerprint.py`; 5+ digit sequences skipped at recording time
+- `✓` **Cold-run validation** — 32/32 verified from scratch (no fingerprints) with clean expected fields and updated system prompt
+- `✓` **Architectural rename** — YAML and code renamed: `steps` → `test_conditions`, `claims` → `steps`, IDs updated throughout (`loader.py`, `agent.py`, `graph.py`, `fingerprint.py`, `report.py`, `run.py`)
+- `✓` **Warm-run validation** — 32/32 verified with fingerprints; ⚡ hit: 29, miss: 3, none: 0
+- `✓` **BA/QA schema separation** — `navigation`, `setup`, `action`, `input`, `output_capture` moved under `execution:` block; BA layer (`goal`, `description`, `type`, `expected`, `depends_on`, `data`) now clean of developer concerns
