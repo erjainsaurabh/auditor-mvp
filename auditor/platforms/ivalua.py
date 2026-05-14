@@ -116,6 +116,11 @@ class IvaluaBrowserSession(BrowserSession):
         absolutely-positioned dropdowns in headless Chrome even when the element
         is visually present, so offsetParent checks always fail in Docker/CI.
 
+        Match strategy (in priority order, all case-insensitive):
+          1. Exact match       — "Emergency" → "Emergency"
+          2. startsWith match  — "Department" → "Department of Finance"
+          3. includes match    — "yard" → '"D" YARD INTERNATIONAL, INC'
+
         Searches ALL li and [role="option"] elements (no container assumption) —
         the Ivalua dropdown structure varies across widget types and versions, and
         the only reliable marker is the item text itself.
@@ -141,8 +146,10 @@ class IvaluaBrowserSession(BrowserSession):
                     for (const el of candidates) {{
                         const text = (el.textContent || '').trim();
                         const textLower = text.toLowerCase();
-                        // Exact match (case-insensitive) or value is a prefix of item text
-                        if (textLower === search || textLower.startsWith(search)) {{
+                        // Exact, startsWith, or substring match (case-insensitive).
+                        // includes() handles search terms that appear mid-string,
+                        // e.g. vendor_search="yard" matching '"D" YARD INTERNATIONAL'.
+                        if (textLower === search || textLower.startsWith(search) || textLower.includes(search)) {{
                             // Confirm the element is actually rendered/visible
                             const rect = el.getBoundingClientRect();
                             if (rect.width > 0 && rect.height > 0) {{

@@ -628,10 +628,19 @@ class BrowserSession:
                 self._page.keyboard.press("Control+a")
                 self._page.wait_for_timeout(50)
                 loc.press_sequentially(value, delay=80)
-                # Try atomic click (platform hook); fall back to fixed wait if
-                # the platform doesn't implement it or item not found.
+                # Try atomic click (platform hook).
+                # For autocomplete comboboxes the value is only properly SET when
+                # the dropdown item is clicked — typing alone leaves the field in
+                # an incomplete/uncommitted state.  Return False if the item was
+                # not found so that the caller can fall back (e.g. ReAct loop).
                 clicked = self._click_autocomplete_item(value)
                 if not clicked:
+                    # _click_autocomplete_item may return None for base-class stubs
+                    # (no platform hook).  In that case a fixed wait is the best
+                    # we can do — treat as success so non-Ivalua fills still work.
+                    if hasattr(self, '_platform_fill_strategies'):
+                        # Platform-aware session: item MUST be clicked for selection
+                        return False
                     self._page.wait_for_timeout(3000)
             else:
                 loc.fill(value, timeout=3000)

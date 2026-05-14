@@ -160,15 +160,15 @@ def _replay_selector(
                 return f"hovered (replay:{sel.type})"
             elif tool == "fill_field":
                 value = args.get("value", "")
-                role = loc.get_attribute("role", timeout=1000) or ""
-                aria_auto = loc.get_attribute("aria-autocomplete", timeout=1000) or ""
-                if role == "combobox" or aria_auto:
-                    loc.focus(timeout=2000)
-                    page.wait_for_timeout(150)
-                    page.keyboard.press("Control+a")
-                    page.wait_for_timeout(50)
-                    loc.press_sequentially(value, delay=80)
-                    page.wait_for_timeout(3000)
+                if sel.type in ("xpath", "xpath_structural"):
+                    # Delegate to fill_by_xpath which handles both regular fields
+                    # AND combobox/autocomplete (types text + clicks the suggestion).
+                    # The old inline combobox path only typed text and never clicked
+                    # the dropdown item, causing autocomplete assertions to fail.
+                    success = session.fill_by_xpath(sel.value, value)
+                    if not success:
+                        sel.failures += 1
+                        continue
                 else:
                     loc.fill(value, timeout=5000)
                     # Dismiss calendar popups that Ivalua opens after date fills
@@ -309,8 +309,6 @@ def _try_fingerprint_replay(
             pass
 
         elif tool == "select_option":
-            # select_option uses label-based lookup — no DOM selector needed.
-            # Resolve {{key}} in option_value from both session_data and step.data.
             field_label = args.get("field_label", "")
             raw_value = args.get("option_value", "")
             option_value = re.sub(
@@ -318,7 +316,21 @@ def _try_fingerprint_replay(
                 lambda m: step.data.get(m.group(1), sd.get(m.group(1), m.group(0))),
                 raw_value,
             )
-            result = session.select_option(field_label, option_value)
+            # Prefer XPath-based fill when selectors are stored — fill_by_xpath
+            # uses press_sequentially + _click_autocomplete_item (8 s polling)
+            # which is more robust than select_option's fixed 300 ms waits.
+            xpath_sels = [s for s in action.selectors if s.type in ("xpath", "xpath_structural")]
+            if xpath_sels:
+                sel = xpath_sels[0]
+                success = session.fill_by_xpath(sel.value, option_value)
+                if success:
+                    sel.successes += 1
+                    result = f"filled via xpath (replay:select_option)"
+                else:
+                    sel.failures += 1
+                    result = session.select_option(field_label, option_value)  # label fallback
+            else:
+                result = session.select_option(field_label, option_value)
             evidence.log_action(f"select_option({field_label!r}, {option_value!r}) [replay]", result)
             if result.startswith("error"):
                 return None
@@ -359,6 +371,12 @@ def _try_fingerprint_replay(
         elif tool == "verify_claim":
             # Check assertions against current page before accepting the stored verdict
             if action.assertions:
+                # Brief settle wait — the last interaction (fill, click, select)
+                # may trigger a DOM update (chip render, XHR response, redirect)
+                # that takes a moment to propagate.  Without this wait the
+                # aria_snapshot is read before the widget has updated and the
+                # assertion fails even though the interaction succeeded.
+                session.page.wait_for_timeout(1500)
                 last_snapshot = session.read_page()
                 _snap_from_messages(
                     [{"role": "tool", "content": last_snapshot}], snap
@@ -681,7 +699,11 @@ def _react_loop(
                 selectors = [SelectorRecord(**s) for s in session._last_selectors]
                 _log_selectors(selectors)
 
-            action_records.append(ActionRecord(tool=name, args=args, selectors=selectors))
+            # Only record actions that succeeded — failed actions pollute the
+            # fingerprint and cause replay to bail before reaching the working
+            # action sequence.  verify_claim is always kept (it's the verdict).
+            if name == "verify_claim" or not result.startswith("error"):
+                action_records.append(ActionRecord(tool=name, args=args, selectors=selectors))
 
             if name == "verify_claim":
                 evidence.set_verdict(args["verdict"], args["confidence"], args["reasoning"])

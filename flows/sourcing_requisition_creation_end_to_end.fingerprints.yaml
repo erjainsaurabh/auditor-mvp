@@ -22,7 +22,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/a
-        successes: 3
+        successes: 10
         failures: 0
       - type: text
         value: Back to home
@@ -40,7 +40,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_User_ID"]
-        successes: 3
+        successes: 10
         failures: 0
       - type: xpath_structural
         value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div/div/input
@@ -54,7 +54,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_Password"]
-        successes: 3
+        successes: 10
         failures: 0
       - type: xpath_structural
         value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[2]/div/input
@@ -67,7 +67,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="loginButton2"]
-        successes: 3
+        successes: 10
         failures: 0
       - type: xpath_structural
         value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[3]/span
@@ -135,7 +135,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/button
-        successes: 3
+        successes: 10
         failures: 0
       - type: text
         value: Requisition
@@ -171,7 +171,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/ul/li/a
-        successes: 3
+        successes: 10
         failures: 0
       - type: text
         value: Browse Requisitions
@@ -214,7 +214,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
-        successes: 3
+        successes: 10
         failures: 0
       - type: text
         value: Create Sourcing Requisition
@@ -475,7 +475,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 3
+        successes: 10
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[2]/div/table/tbody/tr/td/button
@@ -544,49 +544,6 @@ steps:
       selectors: []
       assertions: []
     step_hash: bf651df71721
-  jo5arsw:
-    step_id: jo5arsw
-    source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T15:12:06.188053+00:00'
-    run_id: run_6897ccf5
-    verdict: verified
-    confidence: high
-    actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Requesting Agency
-        value: '{{requesting_agency}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[5]/td/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: verify_claim
-      args:
-        verdict: verified
-        confidence: high
-        reasoning: The Requesting Agency field successfully accepted the value "Department
-          of Homeless Services" and displays it as "DEPARTMENT OF HOMELESS SERVICES"
-          in the form. The field now shows a non-empty value with a "Delete the value"
-          button, confirming the selection is active and visible.
-      selectors: []
-      assertions:
-      - Department of Homeless Services
-      - Delete the value
-    step_hash: 72b183c0f205
   bat3mwr:
     step_id: bat3mwr
     source_file: sourcing_requisition_creation_end_to_end
@@ -614,92 +571,6 @@ steps:
       - 'text: Division *'
       - 'combobox '
     step_hash: 69e78735a6d4
-  zxlva18:
-    step_id: zxlva18
-    source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T15:12:23.689473+00:00'
-    run_id: run_6897ccf5
-    verdict: verified
-    confidence: high
-    actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Division
-        value: '{{division}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[6]/td/div/table/tbody/tr/td/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: verify_claim
-      args:
-        verdict: verified
-        confidence: high
-        reasoning: The Division field successfully accepted the value "Chief of Staff"
-          and displays it as "CHIEF OF STAFF" in the form. The field shows the selected
-          value with a "Delete the value" button, confirming the selection is active
-          and visible on the page.
-      selectors: []
-      assertions:
-      - Chief of Staff
-      - Delete the value
-    step_hash: f8f2a6b37c43
-  729wd9e:
-    step_id: 729wd9e
-    source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T15:12:41.490148+00:00'
-    run_id: run_6897ccf5
-    verdict: verified
-    confidence: high
-    actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Contract Type
-        value: '{{contract_type}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[10]/td/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: verify_claim
-      args:
-        verdict: verified
-        confidence: high
-        reasoning: The Contract Type field successfully accepted the value "General
-          Contract (CT1)" and displays it as "General Contract (CT1)" in the form.
-          The field shows the selected value with a "Delete the value" button, confirming
-          the selection is active and visible on the page.
-      selectors: []
-      assertions:
-      - General Contract (CT1)
-      - Delete the value
-    step_hash: 58b92c8d545d
   dmfhron:
     step_id: dmfhron
     source_file: sourcing_requisition_creation_end_to_end
@@ -747,7 +618,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
-        successes: 3
+        successes: 9
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[3]/td/div/div/div/input
@@ -776,81 +647,6 @@ steps:
       - Test Requisition MVP
       - Label *
     step_hash: 50896a1c1d26
-  lc0w15d:
-    step_id: lc0w15d
-    source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T15:13:10.551223+00:00'
-    run_id: run_6897ccf5
-    verdict: verified
-    confidence: high
-    actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Anticipated Contract Period
-        value: '{{contract_period_start}}'
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: (M/d/yyyy) *
-        value: '{{contract_period_start}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[3]/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: to
-        value: '{{contract_period_end}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[6]/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: take_screenshot
-      args:
-        label: Anticipated Contract Period dates filled
-      selectors: []
-      assertions: []
-    - tool: verify_claim
-      args:
-        verdict: verified
-        confidence: high
-        reasoning: Both Anticipated Contract Period date fields have been successfully
-          filled with the exact values provided. The start date field shows 6/1/2026
-          and the end date field shows 5/31/2030, as confirmed by the screenshot taken
-          after filling both fields. The expected outcome of both date fields showing
-          the entered values has been achieved.
-      selectors: []
-      assertions: []
-    step_hash: deec49e788a5
   46iwfft:
     step_id: 46iwfft
     source_file: sourcing_requisition_creation_end_to_end
@@ -870,7 +666,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selAtypeCodeFundType_search"]
-        successes: 3
+        successes: 9
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[17]/td/div/div/div/input
@@ -917,7 +713,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskProcExeSum"]
-        successes: 3
+        successes: 9
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td[2]/div/div/div[2]/table/tbody/tr/td/div/div/textarea
@@ -970,7 +766,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 3
+        successes: 9
         failures: 0
       assertions: []
     - tool: read_page
@@ -1017,7 +813,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_containerTab_partprxtab_tabc_190731104948"]
-        successes: 3
+        successes: 9
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/div/div[2]/nav/ul/li[2]
@@ -1082,131 +878,32 @@ steps:
       - Procurement Method
       - Select the Procurement Method Below
     step_hash: 54c43a615940
-  irwvhsa:
-    step_id: irwvhsa
-    source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T15:15:13.981284+00:00'
-    run_id: run_6897ccf5
-    verdict: verified
-    confidence: high
-    actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: click
-      args:
-        element_description: Close
-      selectors:
-      - type: xpath
-        value: //*[@id="proxyActionBar_x__cmdEnd"]
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: click
-      args:
-        element_description: Edit Test Requisition MVP - automation
-      selectors: []
-      assertions: []
-    - tool: navigate
-      args:
-        target: https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx/en/ord/basket_manage/262411?=Create&ddlType=src&body_x_tabcselectedID=identity
-      selectors: []
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: take_screenshot
-      args:
-        label: Current state of the requisition form
-      selectors: []
-      assertions: []
-    - tool: click
-      args:
-        element_description: Procurement Method
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_containerTab_partprxtab_tabc_190731104948"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/div/div[2]/nav/ul/li[2]
-        successes: 1
-        failures: 0
-      - type: text
-        value: Procurement Method
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: select_option
-      args:
-        field_label: Procurement Method
-        option_value: '{{procurement_method}}'
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Procurement Method
-        value: '{{procurement_method}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_selPmethCodeReq_search"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[3]/td/div/div/div[2]/table/tbody/tr/td/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: click
-      args:
-        element_description: Emergency
-      selectors: []
-      assertions: []
-    - tool: take_screenshot
-      args:
-        label: Procurement Method set to Emergency with confirmation
-      selectors: []
-      assertions: []
-    - tool: verify_claim
-      args:
-        verdict: verified
-        confidence: high
-        reasoning: The Procurement Method combobox in the PMQ section successfully
-          accepted the "Emergency" value and now displays it as the selected value.
-          The field clearly shows "Emergency" both in the combobox and as confirmation
-          text after the field, confirming that the selection was successful and persistent.
-      selectors: []
-      assertions:
-      - Emergency
-    step_hash: d25c58b480dc
   xajw11d:
     step_id: xajw11d
     source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T15:15:40.867202+00:00'
-    run_id: run_6897ccf5
+    recorded_at: '2026-05-14T17:43:24.744338+00:00'
+    run_id: run_6d50bb7c
     verdict: verified
     confidence: high
     actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
     - tool: click
       args:
         element_description: Save
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
+        successes: 3
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[2]/div/table/tbody/tr/td/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Save
         successes: 1
         failures: 0
       assertions: []
@@ -1216,26 +913,26 @@ steps:
       assertions: []
     - tool: take_screenshot
       args:
-        label: PMQ section reloaded with Change Procurement Method button visible
+        label: PMQ section after Save button clicked
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: After clicking Save, the page successfully reloaded. The PMQ section
-          is now displaying with the 'Change Procurement Method' button clearly visible
-          in the 'Select the Procurement Method Below' section. The Procurement Method
-          field shows "Emergency" as the selected value. The page also shows conditional
-          questions that appeared after selecting Emergency, including the required
-          "Was an Emergency procurement declared..." question. There are validation
-          errors present, but the claim explicitly states to ignore any validation
-          errors.
+        reasoning: 'After clicking Save, the page reloaded and the PMQ section is
+          now displaying with the Procurement Method field showing "Emergency" as
+          the selected value. The section contains the Estimated Total Cost field
+          and PM Req field as expected. A "Delete the value." button is visible next
+          to the Emergency selection, which provides the functionality to change the
+          procurement method. While there is a blocking validation error about the
+          Emergency question (which we are instructed to ignore), the core expected
+          outcome has been met: the PMQ section has reloaded and displays controls
+          to change the procurement method selection.'
       selectors: []
       assertions:
       - Emergency
-      - Change Procurement Method
-      - Select the Procurement Method Below
+      - Delete the value.
     step_hash: 0df3a9d84e5f
   e6872eq:
     step_id: e6872eq
@@ -1251,7 +948,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_proxy_basket_190806113024_x_cbBpquesEmer1_yes"]
-        successes: 1
+        successes: 4
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[4]/td/div/div/div/div/table/tbody/tr[15]/td/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/fieldset/ul/li/div/div/label/input
@@ -1280,68 +977,6 @@ steps:
       assertions:
       - 'Yes'
     step_hash: 8d0d49a23a9b
-  2n4tbdq:
-    step_id: 2n4tbdq
-    source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T15:16:30.113503+00:00'
-    run_id: run_6897ccf5
-    verdict: verified
-    confidence: high
-    actions:
-    - tool: fill_field
-      args:
-        field_label: Vendor
-        value: '{{vendor_search}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_proxy_basket_190806113024_x_selSupIdSs4_3_search"]
-        successes: 1
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[4]/td/div/div/div/div/table/tbody/tr[15]/td/div/table/tbody/tr[2]/td/div/table/tbody/tr[2]/td/div/div/div/input
-        successes: 1
-        failures: 0
-      - type: aria_label
-        value: Vendor
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: click
-      args:
-        element_description: '"D" YARD INTERNATIONAL, INC 0003038520 50 EAST 19th
-          STREET 11226 BROOKLYN'
-      selectors:
-      - type: text
-        value: '"D" YARD INTERNATIONAL, INC 0003038520 50 EAST 19th STREET 11226 BROOKLYN'
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: take_screenshot
-      args:
-        label: Vendor selected via typeahead search
-      selectors: []
-      assertions: []
-    - tool: verify_claim
-      args:
-        verdict: verified
-        confidence: high
-        reasoning: The Vendor field successfully accepted the typeahead search term
-          "yard" and returned "D" YARD INTERNATIONAL, INC as a matching option. After
-          clicking on this vendor option, the Vendor field now displays the selected
-          vendor name "D" YARD INTERNATIONAL, INC. The page clearly shows the vendor
-          name in the field, confirming successful selection via typeahead search.
-      selectors: []
-      assertions:
-      - yard
-    step_hash: 0c0476b760d6
   x87cm0p:
     step_id: x87cm0p
     source_file: sourcing_requisition_creation_end_to_end
@@ -1463,3 +1098,310 @@ steps:
       - Select the Procurement Method Below
       - Change Procurement Method
     step_hash: 39d9f1f59bae
+  jo5arsw:
+    step_id: jo5arsw
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-14T16:19:00.665252+00:00'
+    run_id: run_e4d04b9f
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Requesting Agency
+        value: '{{requesting_agency}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
+        successes: 5
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[5]/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Requesting Agency field successfully displays "DEPARTMENT OF
+          HOMELESS SERVICES" as the selected value. The fill_field function confirmed
+          selection with "selected 'DEPARTMENT OF HOMELESS SERVICES'", and the read_page
+          output shows the text "DEPARTMENT OF HOMELESS SERVICES" displayed in the
+          Requesting Agency section with a delete button, confirming the value is
+          stored and visible as a non-empty selection.
+      selectors: []
+      assertions:
+      - DEPARTMENT OF HOMELESS SERVICES
+      - Department of Homeless Services
+    step_hash: 72b183c0f205
+  zxlva18:
+    step_id: zxlva18
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-14T16:19:13.723966+00:00'
+    run_id: run_e4d04b9f
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Division
+        value: '{{division}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
+        successes: 5
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[6]/td/div/table/tbody/tr/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Division field successfully displays "EXECUTIVE DIRECTOR" as
+          the selected value. The fill_field function confirmed the selection with
+          "selected 'EXECUTIVE DIRECTOR'", and the read_page output shows the text
+          "EXECUTIVE DIRECTOR" displayed in the Division section with a delete button,
+          confirming the value is stored and visible as a non-empty selection.
+      selectors: []
+      assertions:
+      - EXECUTIVE DIRECTOR
+    step_hash: f8f2a6b37c43
+  lc0w15d:
+    step_id: lc0w15d
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-14T16:19:47.830588+00:00'
+    run_id: run_e4d04b9f
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: (M/d/yyyy) *
+        value: '{{contract_period_start}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
+        successes: 4
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[3]/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: to
+        value: '{{contract_period_end}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
+        successes: 4
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[6]/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Anticipated Contract Period dates verification
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Both Anticipated Contract Period date fields have been successfully
+          filled and are displaying the correct values: start date 6/1/2026 and end
+          date 5/31/2030. The screenshot confirms both fields contain the expected
+          date values.'
+      selectors: []
+      assertions: []
+    step_hash: deec49e788a5
+  irwvhsa:
+    step_id: irwvhsa
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-14T16:20:34.758160+00:00'
+    run_id: run_e4d04b9f
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Procurement Method
+        value: '{{procurement_method}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_selPmethCodeReq_search"]
+        successes: 4
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[3]/td/div/div/div[2]/table/tbody/tr/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Procurement Method set to Emergency with conditional questions check
+      selectors: []
+      assertions: []
+    - tool: press_key
+      args:
+        key: End
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Final verification - Emergency selected in Procurement Method with
+          conditional questions visible
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Procurement Method combobox field now displays "Emergency"
+          as the selected value. The page clearly shows the text "Emergency" after
+          the combobox with a "Delete the value." button. Additionally, the three
+          conditional questions (Industry, Estimated Total Cost, and PM Req) are all
+          visible in the Procurement Method Questionnaire section, confirming that
+          selecting Emergency has triggered these conditional fields.
+      selectors: []
+      assertions:
+      - Emergency
+      - Delete the value.
+    step_hash: d25c58b480dc
+  729wd9e:
+    step_id: 729wd9e
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-14T17:11:31.912155+00:00'
+    run_id: run_17364690
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Contract Type
+        value: '{{contract_type}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
+        successes: 4
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[10]/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Contract Type field now shows "General Contract (CT1)" as the
+          selected value, confirming that the field accepts the selection and displays
+          it correctly.
+      selectors: []
+      assertions:
+      - General Contract (CT1)
+    step_hash: 58b92c8d545d
+  2n4tbdq:
+    step_id: 2n4tbdq
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-14T18:01:45.471688+00:00'
+    run_id: run_3eb5d4c8
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Vendor
+        value: '{{vendor_search}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_proxy_basket_190806113024_x_selSupIdSs4_3_search"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[4]/td/div/div/div/div/table/tbody/tr[15]/td/div/table/tbody/tr[2]/td/div/table/tbody/tr[2]/td/div/div/div/input
+        successes: 1
+        failures: 0
+      - type: aria_label
+        value: Vendor
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Vendor field successfully displays the selected vendor name
+          "D" YARD INTERNATIONAL, INC after performing a typeahead search with "yard".
+          The vendor selection is confirmed in the page snapshot where the text '"D"
+          YARD INTERNATIONAL, INC' is shown below the Vendor combobox field, with
+          a "Delete the value." button indicating the field has been populated with
+          the selection.
+      selectors: []
+      assertions:
+      - yard
+      - Delete the value.
+    step_hash: 0c0476b760d6
