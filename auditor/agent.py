@@ -26,6 +26,7 @@ from auditor.fingerprint import (
     SelectorRecord,
     StepFingerprint,
     extract_assertions,
+    step_definition_hash,
 )
 from auditor.graph import build_step_graph, cascade_step_failure, mark_steps_blocked, step_execution_order
 from auditor.llm_client import LLMClient
@@ -137,7 +138,7 @@ def _replay_selector(
     page = session._page
     for sel in selectors:
         try:
-            if sel.type == "xpath":
+            if sel.type in ("xpath", "xpath_structural"):
                 loc = page.locator(f"xpath={sel.value}").first
             elif sel.type == "aria_label":
                 loc = page.locator(f'[aria-label="{sel.value}"]').first
@@ -184,7 +185,7 @@ def _replay_selector(
     # a direct JS el.click(). Try each XPath selector via JS before giving up.
     if tool == "click":
         for sel in selectors:
-            if sel.type == "xpath":
+            if sel.type in ("xpath", "xpath_structural"):
                 try:
                     xpath_js = sel.value.replace("\\", "\\\\").replace('"', '\\"')
                     clicked = page.evaluate(f"""() => {{
@@ -220,20 +221,47 @@ def _resolve_template(value: str, session_data: dict[str, str]) -> str:
     return re.sub(r"\{\{(\w+)\}\}", replacer, value)
 
 
-def _templatize_actions(actions: list[ActionRecord], session_data: dict[str, str]) -> None:
-    """Replace session_data values in navigate targets with {{key}} placeholders.
+def _templatize_actions(
+    actions: list[ActionRecord],
+    session_data: dict[str, str],
+    step_data: dict[str, str] | None = None,
+) -> None:
+    """Replace session/step-data values in fingerprint actions with {{key}} placeholders.
+
+    Two substitutions are performed:
+    1. navigate target: session_data values that appear as substrings are replaced
+       (e.g. a captured requisition_url inside a navigate target).
+    2. fill_field value: test data (step_data) values that are an EXACT match are
+       replaced so the fingerprint stays valid when test_data.yaml changes.
+       Exact-match only — partial/abbreviation matches (e.g. "NYC" for
+       "Department of Homeless Services") are left as-is.
 
     Only named keys (no leading underscore) are used — internal tracking keys
     like _last_url and _last_title are excluded so they don't shadow the correct
     named key (e.g. requisition_url) when both hold the same URL at record time.
     """
-    named_data = {k: v for k, v in session_data.items() if not k.startswith("_")}
+    named_session = {k: v for k, v in session_data.items() if not k.startswith("_")}
+    named_step = {k: v for k, v in (step_data or {}).items() if not k.startswith("_")}
     for action in actions:
         if action.tool == "navigate":
             target = action.args.get("target", "")
-            for key, val in named_data.items():
+            for key, val in named_session.items():
                 if val and val in target:
                     action.args["target"] = target.replace(val, f"{{{{{key}}}}}")
+                    break
+        elif action.tool == "fill_field":
+            val = action.args.get("value", "")
+            for key, data_val in named_step.items():
+                # Exact case-insensitive match only — abbreviations like "NYC" for
+                # "Department of Homeless Services" must NOT be templatized.
+                if data_val and val.strip().lower() == data_val.strip().lower():
+                    action.args["value"] = f"{{{{{key}}}}}"
+                    break
+        elif action.tool == "select_option":
+            val = action.args.get("option_value", "")
+            for key, data_val in named_step.items():
+                if data_val and val.strip().lower() == data_val.strip().lower():
+                    action.args["option_value"] = f"{{{{{key}}}}}"
                     break
 
 
@@ -244,6 +272,7 @@ def _try_fingerprint_replay(
     fp: StepFingerprint,
     snap: dict[str, str],
     session_data: dict[str, str] | None = None,
+    skip_navigate: bool = False,
 ) -> StepStatus | None:
     """
     Replay a fingerprint without calling the LLM.
@@ -251,6 +280,7 @@ def _try_fingerprint_replay(
     """
     sd = session_data or {}
     last_snapshot = ""
+    prev_tool = ""
 
     for action in fp.actions:
         tool = action.tool
@@ -258,6 +288,12 @@ def _try_fingerprint_replay(
 
         if tool == "navigate":
             target = _resolve_template(args["target"], sd)
+            if skip_navigate:
+                # "continue" mode TC — this step should never navigate away from
+                # the current browser state. A stored navigate was recorded when
+                # the TC incorrectly had a navigation hint; skip it silently.
+                print(f"           [replay] navigate({target!r}) skipped — navigation_mode=continue")
+                continue
             result = session.navigate(target)
             evidence.log_action(f"navigate({target}) [replay]", result)
             if result.startswith("error"):
@@ -272,15 +308,49 @@ def _try_fingerprint_replay(
             # Only replay intermediate reads needed for state (skip purely-observational ones)
             pass
 
+        elif tool == "select_option":
+            # select_option uses label-based lookup — no DOM selector needed.
+            # Resolve {{key}} in option_value from both session_data and step.data.
+            field_label = args.get("field_label", "")
+            raw_value = args.get("option_value", "")
+            option_value = re.sub(
+                r"\{\{(\w+)\}\}",
+                lambda m: step.data.get(m.group(1), sd.get(m.group(1), m.group(0))),
+                raw_value,
+            )
+            result = session.select_option(field_label, option_value)
+            evidence.log_action(f"select_option({field_label!r}, {option_value!r}) [replay]", result)
+            if result.startswith("error"):
+                return None
+            session._last_interacted_label = field_label.rstrip(" *").strip()
+
         elif tool in ("click", "hover", "fill_field"):
             if action.selectors:
-                result = _replay_selector(tool, action.selectors, args, session)
+                resolved_args = dict(args)
+                if tool == "fill_field" and "value" in resolved_args:
+                    resolved_args["value"] = re.sub(
+                        r"\{\{(\w+)\}\}",
+                        lambda m: step.data.get(m.group(1), m.group(0)),
+                        resolved_args["value"],
+                    )
+                result = _replay_selector(tool, action.selectors, resolved_args, session)
             else:
                 # No selectors recorded — fall back to ReAct
                 return None
             evidence.log_action(f"{tool}(...) [replay]", result)
             if result.startswith("error"):
                 return None
+            # Mirror _dispatch: keep _last_interacted_label in sync so that
+            # any step falling back to ReAct after this replay gets correct
+            # focused-snapshot context.
+            if tool == "fill_field":
+                session._last_interacted_label = args.get("field_label", "").rstrip(" *").strip()
+            elif tool == "click":
+                # If the click immediately follows a fill_field it is almost
+                # certainly a listbox/autocomplete selection — preserve the
+                # label set by that fill_field.  All other clicks reset it.
+                if prev_tool != "fill_field":
+                    session._last_interacted_label = ""
 
         elif tool == "take_screenshot":
             label = args.get("label", "replay")
@@ -304,9 +374,16 @@ def _try_fingerprint_replay(
             verdict = args.get("verdict", "verified")
             confidence = args.get("confidence", "high")
             reasoning = args.get("reasoning", "replayed from fingerprint")
+            # Always capture page state at verdict time — same guarantee as ReAct path.
+            xpath = session._highlight_last_element()
+            evidence.save_screenshot(session.page, f"{step.id}_verdict_{verdict}")
+            if xpath:
+                session._unhighlight_element(xpath)
             evidence.set_verdict(verdict, confidence, f"[replay] {reasoning[:200]}")
             step.status = StepStatus(verdict)
             return step.status
+
+        prev_tool = tool  # track for next iteration (used to detect listbox clicks)
 
     return None  # no verify_claim found in fingerprint
 
@@ -358,23 +435,39 @@ def run_test_condition(
 
         ev = EvidenceCollector(run_id=run_id, claim_id=step_id, output_dir=output_dir)
 
-        # Get stored fingerprint now (needed by _run_setup for fast-fill)
-        fp_for_step = fp_store.get(step.id) if fp_store else None
-        setup_log, setup_records = _run_setup(step, session, ev, fp_for_step, tc.execution.navigation)
-        if setup_log:
-            console.print(f"    [dim]setup:[/dim] {'; '.join(setup_log)}")
-            for sr in setup_records:
-                _log_selectors(sr.selectors)
+        fp_for_step = fp_store.get(step.id, step.source_file) if fp_store else None
+        # Invalidate fingerprint if the step definition has changed since recording.
+        # step_hash="" means the fingerprint pre-dates this feature — let it replay
+        # (backwards-compatible: old fingerprints without a hash are not broken).
+        if fp_for_step and fp_for_step.step_hash:
+            current_hash = step_definition_hash(
+                step.description,
+                step.expected,
+                getattr(step, "navigation", ""),
+                list(step.data.keys()),
+            )
+            if fp_for_step.step_hash != current_hash:
+                console.print(
+                    f"    [yellow]⚠ fingerprint stale (YAML changed) — hash "
+                    f"{fp_for_step.step_hash} → {current_hash} — running ReAct[/yellow]"
+                )
+                fp_for_step = None
 
         # Build the user message for this step, continuing the shared conversation
-        if setup_log:
-            nav_context = (
-                f"Setup already completed: {'; '.join(setup_log)}. "
-                f"You are already on the correct page — do NOT navigate away. "
-                f"Proceed directly to verifying the claim.\n"
-            )
-        elif first_step:
-            if available:
+        is_continue = tc.execution.navigation_mode == "continue"
+        if first_step:
+            if is_continue:
+                # "continue" mode: stay on current browser state — never mention a
+                # navigation target so the LLM cannot be tempted to navigate away.
+                last_url = session_data.get("_last_url", "")
+                last_title = session_data.get("_last_title", "")
+                title_hint = f" ({last_title})" if last_title else ""
+                nav_context = (
+                    f"Browser is currently at: {last_url}{title_hint}. "
+                    f"This test condition continues from the previous one — "
+                    f"do NOT navigate away. The page state is already correct.\n"
+                )
+            elif available:
                 data_str = "\n".join(f"  {k}: {v}" for k, v in available.items())
                 nav_hint = f"\n  start at: {tc.execution.navigation}" if tc.execution.navigation else ""
                 current_browser = session_data.get("_last_url", "")
@@ -422,7 +515,8 @@ def run_test_condition(
         if step.data:
             _sensitive = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
             data_lines = "\n".join(
-                f"  {k}: {'****' if _sensitive.search(k) else v}"
+                f"  {k}: [sensitive — pass placeholder {{{{{k}}}}} as the value]"
+                if _sensitive.search(k) else f"  {k}: {v}"
                 for k, v in step.data.items()
             )
             data_context = f"Test data (use these exact values):\n{data_lines}\n"
@@ -454,9 +548,9 @@ def run_test_condition(
             snap=snap,
             fp_store=fp_store,
             run_id=run_id,
-            setup_records=setup_records,
             fp_for_step=fp_for_step,
             session_data=session_data,
+            skip_navigate=is_continue,
         )
         # Prefer live browser URL (works for fingerprint replay + ReAct alike)
         live_url = session.current_url()
@@ -506,9 +600,9 @@ def _react_loop(
     snap: dict[str, str] | None = None,
     fp_store: FingerprintStore | FingerprintRouter | None = None,
     run_id: str = "",
-    setup_records: list[ActionRecord] | None = None,
     fp_for_step: StepFingerprint | None = None,
     session_data: dict[str, str] | None = None,
+    skip_navigate: bool = False,
 ) -> StepStatus:
     # --- Tier 1: fingerprint replay (zero LLM calls on stable UI) ---
     # Steps with setup blocks: setup already ran via _run_setup(); only replay the ReAct actions.
@@ -516,7 +610,7 @@ def _react_loop(
     if fp_store and fp_for_step and fp_for_step.actions:
         console.print(f"    [dim cyan]⚡ trying fingerprint replay… [{_ts()}][/dim cyan]")
         replay_snap: dict[str, str] = snap if snap is not None else {}
-        status = _try_fingerprint_replay(step, session, evidence, fp_for_step, replay_snap, session_data)
+        status = _try_fingerprint_replay(step, session, evidence, fp_for_step, replay_snap, session_data, skip_navigate=skip_navigate)
         if snap is not None:
             snap.update(replay_snap)
         if status is not None:
@@ -611,23 +705,32 @@ def _react_loop(
                             if len(val) >= 3 and val.lower() in snap_lower and val not in assertions:
                                 assertions.append(val)
                     action_records[-1].assertions = assertions
-                    # Replace dynamic session values (e.g. requisition_url) with {{key}} placeholders
-                    _templatize_actions(action_records, session_data or {})
+                    # Replace dynamic session values (e.g. requisition_url) with {{key}} placeholders.
+                    # Also replace fill_field values that exactly match step test data so
+                    # fingerprints stay valid when test_data.yaml changes.
+                    _templatize_actions(action_records, session_data or {}, step.data)
+                    current_hash = step_definition_hash(
+                        step.description,
+                        step.expected,
+                        getattr(step, "navigation", ""),
+                        list(step.data.keys()),
+                    )
                     fp = StepFingerprint(
                         step_id=step.id,
+                        source_file=step.source_file,
                         recorded_at=datetime.now(timezone.utc).isoformat(),
                         run_id=run_id,
                         verdict=args["verdict"],
                         confidence=args["confidence"],
                         actions=action_records,
-                        setup_records=setup_records or [],
+                        step_hash=current_hash,
                     )
                     fp_store.record(fp)
                     fp_store.save()
                     console.print(
                         f"    [dim cyan]📌 fingerprint recorded "
                         f"({len(action_records)} actions, {len(assertions)} assertions, "
-                        f"{len(setup_records or [])} setup_records)[/dim cyan]"
+                        f"hash={current_hash})[/dim cyan]"
                     )
 
                 return step.status
@@ -635,80 +738,6 @@ def _react_loop(
     console.print(f"    [yellow]max actions reached without verdict → blocked[/yellow]")
     step.status = StepStatus.blocked
     return step.status
-
-
-def _run_setup(
-    step: Step,
-    session: BrowserSession,
-    evidence: EvidenceCollector,
-    fp: StepFingerprint | None = None,
-    navigation: str = "",
-) -> tuple[list[str], list[ActionRecord]]:
-    if not step.execution.setup and not step.execution.action:
-        return [], []
-
-    log: list[str] = []
-    setup_records: list[ActionRecord] = []
-
-    # Build an index of stored setup selectors by position for fast replay
-    stored = fp.setup_records if fp else []
-
-    nav_target = navigation
-    result = session.navigate(nav_target)
-    evidence.log_action(f"navigate({nav_target})", result)
-    log.append(result)
-
-    for i, setup_item in enumerate(step.execution.setup):
-        if setup_item.fill_field:
-            label = setup_item.fill_field["label"]
-            value = setup_item.fill_field["value"]
-            # Resolve {{key}} placeholders from step.data (already expanded from test_data.yaml)
-            value = re.sub(r"\{\{(\w+)\}\}", lambda m: step.data.get(m.group(1), m.group(0)), value)
-            masked = "****" if "password" in label.lower() else value
-
-            r = None
-            # Try stored XPath selectors first (fast, no strategy waterfall)
-            if i < len(stored) and stored[i].selectors:
-                for sel in stored[i].selectors:
-                    if sel.type == "xpath":
-                        ok = session.fill_by_xpath(sel.value, value)
-                        if ok:
-                            sel.successes += 1
-                            r = f"filled '{label}' with '{masked}' (replay:xpath)"
-                            selectors = [sel]
-                            break
-                        else:
-                            sel.failures += 1
-            if r is None:
-                raw_r = session.fill_field(label, value)
-                r = raw_r.replace(value, masked) if masked != value else raw_r
-                selectors = [SelectorRecord(**s) for s in session._last_selectors]
-
-            evidence.log_action(f"fill_field({label!r}, {masked!r})", r)
-            log.append(r)
-            setup_records.append(ActionRecord(tool="fill_field", args={"field_label": label, "value": masked}, selectors=selectors))
-
-        elif setup_item.click:
-            r = session.click(setup_item.click)
-            evidence.log_action(f"click({setup_item.click!r})", r)
-            log.append(r)
-            selectors = [SelectorRecord(**s) for s in session._last_selectors]
-            setup_records.append(ActionRecord(tool="click", args={"element_description": setup_item.click}, selectors=selectors))
-
-        elif setup_item.hover:
-            r = session.hover(setup_item.hover)
-            evidence.log_action(f"hover({setup_item.hover!r})", r)
-            log.append(r)
-            selectors = [SelectorRecord(**s) for s in session._last_selectors]
-            setup_records.append(ActionRecord(tool="hover", args={"element_description": setup_item.hover}, selectors=selectors))
-
-    if step.execution.action == "submit_form":
-        r = session.submit_form()
-        evidence.log_action("submit_form()", r)
-        log.append(r)
-        setup_records.append(ActionRecord(tool="submit_form", args={}))
-
-    return log, setup_records
 
 
 def _dispatch(
@@ -742,7 +771,11 @@ def _dispatch(
         case "hover":
             return session.hover(args["element_description"])
         case "fill_field":
-            result = session.fill_field(args["field_label"], args["value"])
+            value = re.sub(r"\{\{(\w+)\}\}", lambda m: step.data.get(m.group(1), m.group(0)), args["value"])
+            _sensitive = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
+            display_value = "[sensitive]" if _sensitive.search(args["field_label"]) else repr(value)
+            console.print(f"           [dim]data: field={args['field_label']!r} value={display_value}[/dim]")
+            result = session.fill_field(args["field_label"], value)
             if not result.startswith("error"):
                 session._last_interacted_label = args["field_label"].rstrip(" *").strip()
             return result
@@ -768,6 +801,13 @@ def _dispatch(
                 session._unhighlight_element(xpath)
             return path
         case "verify_claim":
+            # Always capture page state at verdict time as baseline evidence,
+            # regardless of whether the LLM called take_screenshot earlier.
+            verdict = args.get("verdict", "verified")
+            xpath = session._highlight_last_element()
+            evidence.save_screenshot(session.page, f"{step.id}_verdict_{verdict}")
+            if xpath:
+                session._unhighlight_element(xpath)
             return "verdict recorded"
         case _:
             return f"unknown tool: {name}"

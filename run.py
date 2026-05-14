@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -14,13 +16,12 @@ from auditor.agent import run_test_condition
 from auditor.fingerprint import FingerprintRouter, FingerprintStore
 from auditor.graph import build_condition_graph, cascade_condition_failure, condition_execution_order, mark_conditions_blocked
 from auditor.llm_client import LLMClient
-from auditor.loader import ConditionStatus, load_flows, load_test_data
+from auditor.loader import ConditionStatus, load_flows
 from auditor.report import print_summary, write_report
 from auditor.tools import BrowserSession
 
 
 def _make_session(app_config: dict) -> BrowserSession:
-    """Instantiate the right BrowserSession subclass based on config.platform."""
     platform = app_config.get("platform", "generic").lower()
     kwargs = dict(
         base_url=app_config["base_url"],
@@ -30,39 +31,29 @@ def _make_session(app_config: dict) -> BrowserSession:
     if platform == "ivalua":
         from auditor.platforms.ivalua import IvaluaBrowserSession
         return IvaluaBrowserSession(**kwargs)
-    # Default: generic BrowserSession (no platform-specific strategies)
     return BrowserSession(**kwargs)
+
 
 console = Console()
 
 
-def main() -> None:
-    # Accept one or more YAML files plus an optional --data flag:
-    #   python run.py login.yaml requisition_claims.yaml
-    #   python run.py login.yaml requisition_claims.yaml --data test_data.yaml
-    args = sys.argv[1:]
-    data_path: Path | None = None
-    if "--data" in args:
-        idx = args.index("--data")
-        data_path = Path(args[idx + 1])
-        args = args[:idx] + args[idx + 2:]
-    yaml_paths = [Path(p) for p in args] if args else [Path("claims.yaml")]
-    config_path = Path("config.yaml")
+def run_audit(
+    yaml_paths: list[Path],
+    data_path: Path | None = None,
+    config_path: Path = Path("config.yaml"),
+    report_path: Path = Path("report.json"),
+    run_id: str | None = None,
+) -> dict:
+    """Execute an audit run and return the report as a dict.
 
-    # Fall back to test_data.yaml in the current directory if --data not given
-    if data_path is None and Path("test_data.yaml").exists():
-        data_path = Path("test_data.yaml")
-
-    for p in yaml_paths:
-        if not p.exists():
-            console.print(f"[red]flows file not found: {p}[/red]")
-            sys.exit(1)
-
+    Writes the report to *report_path* and returns the same data so callers
+    (CLI, API) can use it without re-reading the file.
+    """
     config = yaml.safe_load(config_path.read_text())
+    if os.getenv("AUDITOR_HEADLESS", "").lower() in ("1", "true", "yes"):
+        config["app"]["headless"] = True
     flow_file = load_flows(*yaml_paths, test_data_path=data_path)
-    if data_path:
-        console.print(f"  test data: {data_path}")
-    run_id = f"run_{uuid.uuid4().hex[:8]}"
+    run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
     output_dir = Path(config["evidence"]["output_dir"])
 
     total_steps = len(flow_file.all_steps)
@@ -70,6 +61,8 @@ def main() -> None:
     console.print(f"\n[bold]Auditor MVP[/bold] — run [cyan]{run_id}[/cyan]")
     console.print(f"Flows: {len(flow_file.flows)}  Test Conditions: {total_tcs}  Steps: {total_steps}")
     console.print(f"Target: {config['app']['base_url']}\n")
+    if data_path:
+        console.print(f"  test data: {data_path}")
 
     condition_graph = build_condition_graph(flow_file.flows)
     order = condition_execution_order(condition_graph)
@@ -77,12 +70,10 @@ def main() -> None:
 
     llm = LLMClient(config["llm"])
 
-    # Per-YAML fingerprint files: login.yaml → login.fingerprints.yaml
     per_yaml_stores: list[tuple[FingerprintStore, set[str]]] = []
     for yp in yaml_paths:
         fp_path = yp.with_name(f"{yp.stem}.fingerprints.yaml")
-        store = FingerprintStore(fp_path)
-        # Collect all step IDs that belong to this YAML's flows
+        store = FingerprintStore(fp_path, source_file=yp.stem)
         from auditor.loader import load_flows as _lf
         yf = _lf(yp)
         step_ids = {s.id for s in yf.all_steps}
@@ -124,10 +115,35 @@ def main() -> None:
                 if blocked:
                     console.print(f"  [dim]cascading block to test conditions: {', '.join(blocked)}[/dim]\n")
 
-    report_path = Path("report.json")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     write_report(flow_file, all_evidence, run_id, report_path)
     print_summary(flow_file.all_steps, all_evidence, run_id)
     console.print(f"\n[dim]Report saved to {report_path}[/dim]")
+
+    return json.loads(report_path.read_text())
+
+
+def main() -> None:
+    # Accept one or more YAML files plus an optional --data flag:
+    #   python run.py login.yaml requisition_claims.yaml
+    #   python run.py login.yaml requisition_claims.yaml --data test_data.yaml
+    args = sys.argv[1:]
+    data_path: Path | None = None
+    if "--data" in args:
+        idx = args.index("--data")
+        data_path = Path(args[idx + 1])
+        args = args[:idx] + args[idx + 2:]
+    yaml_paths = [Path(p) for p in args] if args else [Path("claims.yaml")]
+
+    if data_path is None and Path("test_data.yaml").exists():
+        data_path = Path("test_data.yaml")
+
+    for p in yaml_paths:
+        if not p.exists():
+            console.print(f"[red]flows file not found: {p}[/red]")
+            sys.exit(1)
+
+    run_audit(yaml_paths, data_path)
 
 
 if __name__ == "__main__":

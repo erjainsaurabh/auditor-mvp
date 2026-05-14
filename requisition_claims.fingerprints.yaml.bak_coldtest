@@ -434,6 +434,59 @@ steps:
           the Division field is completely absent from the visible form elements.
       selectors: []
       assertions: []
+  step_014:
+    step_id: step_014
+    source_file: requisition_claims
+    recorded_at: '2026-05-12T20:21:15.992732+00:00'
+    run_id: run_38fb7da7
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Requesting Agency
+        value: Department of Homeless Services
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
+        successes: 4
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: DEPARTMENT OF HOMELESS SERVICES
+      selectors:
+      - type: text
+        value: DEPARTMENT OF HOMELESS SERVICES
+        successes: 4
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requesting Agency selected - Department of Homeless Services displayed
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Requesting Agency field was successfully populated with "Department
+          of Homeless Services" and the page now displays the selected agency name
+          "DEPARTMENT OF HOMELESS SERVICES" as a non-empty value in the field. The
+          field shows the selected value clearly with a "Delete the value" button
+          next to it, confirming the selection is active and displayed.
+      selectors: []
+      assertions:
+      - Department of Homeless Services
+      - Delete the value
   step_015:
     step_id: step_015
     source_file: requisition_claims
@@ -465,6 +518,60 @@ steps:
       - DEPARTMENT OF HOMELESS SERVICES
       - 'text: Division *'
       - Division *
+  step_016:
+    step_id: step_016
+    source_file: requisition_claims
+    recorded_at: '2026-05-12T20:22:38.939932+00:00'
+    run_id: run_38fb7da7
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Division
+        value: Chief of Staff
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
+        successes: 4
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: CHIEF OF STAFF
+      selectors:
+      - type: text
+        value: CHIEF OF STAFF
+        successes: 4
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Division field shows selected value - Chief of Staff
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Division field successfully accepted and now displays the selected
+          division value "CHIEF OF STAFF". The page DOM confirms the field contains
+          the selected value with a "Delete the value" button next to it, demonstrating
+          that the Division field can be populated with a selection and the value
+          is properly retained and displayed on the form.
+      selectors: []
+      assertions:
+      - CHIEF OF STAFF
+      - Delete the value
+      - Chief of Staff
   step_017:
     step_id: step_017
     source_file: requisition_claims
@@ -476,7 +583,7 @@ steps:
     - tool: fill_field
       args:
         field_label: Contract Type
-        value: '{{contract_type}}'
+        value: General Contract (CT1)
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
@@ -564,7 +671,7 @@ steps:
     - tool: fill_field
       args:
         field_label: Label
-        value: '{{label}}'
+        value: Test Requisition MVP
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
@@ -603,13 +710,13 @@ steps:
     - tool: fill_field
       args:
         field_label: 'Anticipated Contract Period : Expected date format: mm/dd/yy'
-        value: '{{contract_period_start}}'
+        value: 6/1/2026
       selectors: []
       assertions: []
     - tool: fill_field
       args:
         field_label: (M/d/yyyy) *
-        value: '{{contract_period_start}}'
+        value: 6/1/2026
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
@@ -623,7 +730,7 @@ steps:
     - tool: fill_field
       args:
         field_label: to
-        value: '{{contract_period_end}}'
+        value: 5/31/2027
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
@@ -664,7 +771,7 @@ steps:
     - tool: fill_field
       args:
         field_label: Funding Type
-        value: '{{funding_type}}'
+        value: Expense
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selAtypeCodeFundType_search"]
@@ -717,7 +824,7 @@ steps:
     - tool: fill_field
       args:
         field_label: Executive Summary
-        value: '{{procurement_description}}'
+        value: Test procurement for auditor MVP verification
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskProcExeSum"]
@@ -872,13 +979,13 @@ steps:
     - tool: select_option
       args:
         field_label: Procurement Method
-        option_value: '{{procurement_method}}'
+        option_value: Emergency
       selectors: []
       assertions: []
     - tool: fill_field
       args:
         field_label: Procurement Method
-        value: '{{procurement_method}}'
+        value: Emergency
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_selPmethCodeReq_search"]
@@ -976,7 +1083,7 @@ steps:
     - tool: fill_field
       args:
         field_label: Vendor
-        value: '{{vendor_search}}'
+        value: yard
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_proxy_basket_190806113024_x_selSupIdSs4_3_search"]

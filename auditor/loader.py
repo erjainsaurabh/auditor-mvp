@@ -38,26 +38,19 @@ class ConditionStatus(str, Enum):
     blocked = "blocked"
 
 
-class SetupStep(BaseModel):
-    fill_field: dict[str, str] | None = None
-    click: str | None = None
-    hover: str | None = None
-
-
 class OutputCapture(BaseModel):
     key: str
     strategy: str  # "current_url" | "page_title" | "url_segment:N"
 
 
-class StepExecution(BaseModel):
-    """Developer/executor layer — fields a BA does not author."""
-    setup: list[SetupStep] = Field(default_factory=list)
-    action: str | None = None
-
-
 class ConditionExecution(BaseModel):
     """Developer/executor layer — fields a BA does not author."""
-    navigation: str = ""        # URL path the browser should start at
+    navigation: str = ""        # URL path / page name the browser should start at
+    navigation_mode: str = "fresh"  # "fresh"    → always navigate to `navigation` before starting
+                                    # "continue" → stay on current browser state; ignore navigation hint
+                                    # Default is "fresh" (backwards-compatible).
+                                    # Use "continue" for TCs that pick up where the previous TC left off
+                                    # (e.g. filling more fields on the same open form).
     input: list[str] = Field(default_factory=list)               # session_data keys from prior conditions
     output_capture: list[OutputCapture] = Field(default_factory=list)  # values to capture after this condition
 
@@ -69,10 +62,12 @@ class Step(BaseModel):
     type: StepType
     expected: str
     depends_on: list[str] = Field(default_factory=list)
+    sequence: int = 0       # tiebreaker when multiple steps are at the same dependency level;
+                            # lower runs first. 0 = "no preference" (file order preserved).
+                            # Not part of the fingerprint hash — ordering ≠ intent.
     data: dict[str, str] = Field(default_factory=dict)   # test data injected into LLM context
-    # ── Executor layer (filled in by a developer) ─────────────────────────────
-    execution: StepExecution = Field(default_factory=StepExecution)
-    # ── Runtime state ─────────────────────────────────────────────────────────
+    # ── Runtime state (set by loader/agent, not authored in YAML) ─────────────
+    source_file: str = ""   # YAML stem this step belongs to — set by load_flows()
     status: StepStatus = StepStatus.not_started
     evidence: dict[str, Any] | None = None
     unverifiable_reason: str | None = None
@@ -83,6 +78,7 @@ class TestCondition(BaseModel):
     id: str
     goal: str
     depends_on: list[str] = Field(default_factory=list)
+    sequence: int = 0       # tiebreaker when multiple test conditions are at the same dependency level
     steps: list[Step] = Field(default_factory=list)
     # ── Executor layer ────────────────────────────────────────────────────────
     execution: ConditionExecution = Field(default_factory=ConditionExecution)
@@ -179,6 +175,12 @@ def load_flows(*paths: str | Path, test_data_path: str | Path | None = None) -> 
         ff = FlowFile.model_validate(raw)
         if ff.config and not merged.config:
             merged.config = ff.config
+        # Tag every step with the YAML stem so the fingerprint router can scope
+        # fingerprints by (source_file, step_id) — avoids collisions when multiple
+        # YAML files share step IDs like step_001.
+        stem = Path(path).stem
+        for step in ff.all_steps:
+            step.source_file = stem
         merged.flows.extend(ff.flows)
 
     test_data = load_test_data(test_data_path)

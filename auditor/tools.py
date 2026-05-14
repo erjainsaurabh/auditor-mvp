@@ -60,7 +60,7 @@ class BrowserSession:
         Returns the XPath used (so the caller can unhighlight later), or None.
         """
         xpath = next(
-            (s["value"] for s in self._last_selectors if s.get("type") == "xpath"),
+            (s["value"] for s in self._last_selectors if s.get("type") in ("xpath", "xpath_structural")),
             None,
         )
         if not xpath:
@@ -175,15 +175,29 @@ class BrowserSession:
         return prefix + "\n".join(window) + suffix
 
     def _extract_selectors(self, locator) -> list[dict]:
-        """Extract XPath, aria-label, and text from a Playwright Locator."""
+        """Extract multiple selectors from a Playwright Locator, in priority order.
+
+        Selector priority (tried in this order during replay):
+          1. xpath (id-based)   — //*[@id="..."]  — stable, fast
+          2. xpath (structural) — /html/body/...  — fallback if id changes
+          3. aria_label         — [aria-label="..."] — semantic, UI-version-resilient
+          4. text               — exact visible text — last resort
+
+        Both XPath variants are always recorded when the element has an id so
+        that a Ivalua form version bump (which can change generated ids) still
+        has a structural fallback rather than falling all the way through to ReAct.
+        """
         try:
             # Fast existence check — locator.count() is immediate, no wait.
             # Skips the expensive evaluate() (30s default timeout) when element is absent.
             if locator.count() == 0:
                 return []
             data = locator.evaluate("""el => {
-                function getXPath(node) {
+                function getIdXPath(node) {
                     if (node.id) return '//*[@id="' + node.id + '"]';
+                    return '';
+                }
+                function getStructuralXPath(node) {
                     const parts = [];
                     let cur = node;
                     while (cur && cur.nodeType === 1) {
@@ -196,16 +210,24 @@ class BrowserSession:
                     return '/' + parts.join('/');
                 }
                 return {
-                    xpath: getXPath(el),
-                    aria_label: el.getAttribute('aria-label') || '',
-                    text: (el.textContent || '').trim().slice(0, 100)
+                    xpath_id:         getIdXPath(el),
+                    xpath_structural: getStructuralXPath(el),
+                    aria_label:       el.getAttribute('aria-label') || '',
+                    text:             (el.textContent || '').trim().slice(0, 100)
                 };
             }""")
             result = []
-            if data.get("xpath"):
-                result.append({"type": "xpath", "value": data["xpath"]})
+            # 1. ID-based XPath — highest confidence
+            if data.get("xpath_id"):
+                result.append({"type": "xpath", "value": data["xpath_id"]})
+            # 2. Structural XPath — fallback when id changes (e.g. Ivalua form version bump)
+            #    Only add if it differs from the id xpath (always true when xpath_id exists)
+            if data.get("xpath_structural") and data.get("xpath_structural") != data.get("xpath_id"):
+                result.append({"type": "xpath_structural", "value": data["xpath_structural"]})
+            # 3. aria-label — semantic, survives DOM restructuring
             if data.get("aria_label"):
                 result.append({"type": "aria_label", "value": data["aria_label"]})
+            # 4. Visible text — last resort (broad match, use with caution)
             if data.get("text"):
                 result.append({"type": "text", "value": data["text"]})
             return result
@@ -319,6 +341,15 @@ class BrowserSession:
         """
         return None
 
+    def _click_autocomplete_item(self, value: str) -> str | None:
+        """
+        Extension hook — override in platform subclasses to atomically click an
+        autocomplete dropdown item after fill_field has typed the search value.
+        Return the clicked item text on success, None to fall through to a fixed wait.
+        Called by fill_by_xpath for combobox/autocomplete inputs.
+        """
+        return None
+
     def click(self, element_description: str) -> str:
         page = self._page
         self._last_selectors = []
@@ -340,15 +371,21 @@ class BrowserSession:
         # Strategies paired with a boolean: True = this is a tab/navigation click.
         # Tab clicks should NOT anchor the focused snapshot — the revealed tabpanel
         # content appears elsewhere in the DOM, far below the tab element itself.
+        #
+        # NOTE: role-based strategies (button, link) run BEFORE text-based ones.
+        # Text-based locators (get_by_text) match inner spans/labels first, which
+        # are not directly clickable in frameworks like Ivalua where buttons wrap
+        # a <span data-iv-role="label"> child.  Role-based lookup resolves to the
+        # actual interactive element and passes actionability checks.
         normal_strategies: list[tuple[Any, bool]] = [
             (lambda: page.get_by_role("option", name=clean).first, False),
             (lambda: page.get_by_role("tab", name=clean).first,    True),   # tab
             (lambda: page.get_by_role("tab", name=desc).first,     True),   # tab
+            (lambda: page.get_by_role("button", name=clean).first, False),  # before text — avoids inner-span match
+            (lambda: page.get_by_role("link", name=clean).first,   False),  # before text
             (lambda: page.get_by_text(clean, exact=True).first,    False),
             (lambda: page.get_by_text(desc, exact=True).first,     False),
             (lambda: page.get_by_text(clean, exact=False).first,   False),
-            (lambda: page.get_by_role("button", name=clean).first, False),
-            (lambda: page.get_by_role("link", name=clean).first,   False),
             (lambda: page.locator(f'[aria-label*="{css_clean}"]').first, False),
             (lambda: page.locator(f'[title*="{css_clean}"]').first,      False),
         ]
@@ -373,6 +410,7 @@ class BrowserSession:
 
         # Force click — bypasses visibility check for CSS hover dropdowns
         force_strategies = [
+            lambda: page.get_by_role("button", name=clean).first,  # force-click button (e.g. partially obscured)
             lambda: page.get_by_text(desc, exact=False).first,
             lambda: page.locator(f'a:has-text("{desc}")').first,
         ]
@@ -581,14 +619,20 @@ class BrowserSession:
             role = loc.get_attribute("role", timeout=1000) or ""
             aria_auto = loc.get_attribute("aria-autocomplete", timeout=1000) or ""
             if role == "combobox" or aria_auto:
-                # focus() avoids widget click side-effects; Ctrl+A selects stale
-                # content; press_sequentially replaces it to trigger per-key XHR
-                loc.focus(timeout=2000)
+                # click() instead of focus() — auto-scrolls into view and fires
+                # the mouse event chain needed to activate autocomplete widgets
+                # in headless Chrome (focus() alone is insufficient when the
+                # element is below the fold in a small headless viewport).
+                loc.click(timeout=2000)
                 self._page.wait_for_timeout(150)
                 self._page.keyboard.press("Control+a")
                 self._page.wait_for_timeout(50)
                 loc.press_sequentially(value, delay=80)
-                self._page.wait_for_timeout(3000)
+                # Try atomic click (platform hook); fall back to fixed wait if
+                # the platform doesn't implement it or item not found.
+                clicked = self._click_autocomplete_item(value)
+                if not clicked:
+                    self._page.wait_for_timeout(3000)
             else:
                 loc.fill(value, timeout=3000)
             return True

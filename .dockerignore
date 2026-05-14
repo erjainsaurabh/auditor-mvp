@@ -1,0 +1,22 @@
+# secrets — never in the image
+.env
+
+# runtime output
+evidence/
+report.json
+*.fingerprints.yaml
+*.fingerprints.yaml.bak
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# dev / OS noise
+.git/
+.gitignore
+*.md
+.DS_Store

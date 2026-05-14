@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -29,17 +31,45 @@ class ActionRecord(BaseModel):
 
 class StepFingerprint(BaseModel):
     step_id: str
+    source_file: str = ""   # YAML stem — used by FingerprintRouter to write to the right store
     recorded_at: str
     run_id: str
     verdict: str
     confidence: str
     actions: list[ActionRecord] = Field(default_factory=list)
-    setup_records: list[ActionRecord] = Field(default_factory=list)
+    step_hash: str = ""     # SHA-1 of the step's definition fields — empty means "untracked"
+
+
+def step_definition_hash(description: str, expected: str, navigation: str, data_keys: list[str]) -> str:
+    """Return a short SHA-1 digest of the stable, intent-defining fields of a Step.
+
+    Only fields that change the *meaning* of the step are included:
+      - description  — what the step is verifying
+      - expected     — the observable state being checked
+      - navigation   — where the browser should be
+      - data_keys    — which test-data keys are used (not the values — those are in test_data.yaml)
+
+    Intentionally excluded:
+      - depends_on   — execution order, not intent
+      - type         — rarely changes meaning
+      - data values  — live in test_data.yaml, not the YAML spec
+    """
+    payload = json.dumps(
+        {
+            "description": description.strip(),
+            "expected": expected.strip(),
+            "navigation": navigation.strip(),
+            "data_keys": sorted(data_keys),
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha1(payload.encode()).hexdigest()[:12]
 
 
 class FingerprintStore:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, source_file: str = "") -> None:
         self._path = path
+        self.source_file = source_file or path.stem.split(".")[0]
         self._store: dict[str, StepFingerprint] = {}
         if path.exists():
             raw = yaml.safe_load(path.read_text()) or {}
@@ -49,7 +79,7 @@ class FingerprintStore:
                 except Exception:
                     pass  # skip corrupt entries
 
-    def get(self, step_id: str) -> StepFingerprint | None:
+    def get(self, step_id: str, source_file: str = "") -> StepFingerprint | None:
         return self._store.get(step_id)
 
     def record(self, fp: StepFingerprint) -> None:
@@ -68,22 +98,28 @@ class FingerprintStore:
 
 
 class FingerprintRouter:
-    """Routes fingerprint reads across all stores, writes to the correct per-YAML store."""
+    """Routes fingerprint reads/writes across per-YAML stores.
+
+    Uses (source_file, step_id) as the compound key so that step_001 in
+    login.yaml and step_001 in requisition_claims.yaml are stored and
+    retrieved independently — no collision regardless of ID reuse across files.
+    """
 
     def __init__(self, stores: list[tuple[FingerprintStore, set[str]]]) -> None:
         # stores: list of (store, {step_ids that belong to it})
         self._stores = stores
-        self._id_to_store: dict[str, FingerprintStore] = {}
+        # Compound key: (source_file_stem, step_id)
+        self._id_to_store: dict[tuple[str, str], FingerprintStore] = {}
         for store, step_ids in stores:
             for sid in step_ids:
-                self._id_to_store[sid] = store
+                self._id_to_store[(store.source_file, sid)] = store
 
-    def get(self, step_id: str) -> StepFingerprint | None:
-        store = self._id_to_store.get(step_id)
+    def get(self, step_id: str, source_file: str = "") -> StepFingerprint | None:
+        store = self._id_to_store.get((source_file, step_id))
         return store.get(step_id) if store else None
 
     def record(self, fp: StepFingerprint) -> None:
-        store = self._id_to_store.get(fp.step_id)
+        store = self._id_to_store.get((fp.source_file, fp.step_id))
         if store:
             store.record(fp)
             store.save()

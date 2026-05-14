@@ -14,8 +14,3 @@ flows:
             data:
               app_username: "{{app_username}}"
               app_password: "{{app_password}}"
-            execution:
-              setup:
-                - fill_field: {label: "Email Address", value: "{{app_username}}"}
-                - fill_field: {label: "Password",       value: "{{app_password}}"}
-              action: submit_form

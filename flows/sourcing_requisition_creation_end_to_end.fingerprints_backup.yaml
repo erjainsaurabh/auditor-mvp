@@ -1,0 +1,1091 @@
+steps:
+  step_001:
+    step_id: step_001
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:36:12.286939+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: Home
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Back to home
+      selectors:
+      - type: xpath
+        value: /html/body/a
+        successes: 1
+        failures: 0
+      - type: text
+        value: Back to home
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Email Address
+        value: '{{app_username}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="Ecom_User_ID"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Password
+        value: '{{app_password}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="Ecom_Password"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: Sign in
+      selectors:
+      - type: xpath
+        value: //*[@id="loginButton2"]
+        successes: 1
+        failures: 0
+      - type: text
+        value: Sign in
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Home page loaded with main navigation menu after successful login
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Login succeeded with the provided credentials (DHSACCOSTAFFADMINTWO@doitt.nyc.gov).
+          The home page loaded successfully and displays a main navigation menu with
+          all expected items including Requisition, Contracts, Vendors, Catalog, Sourcing,
+          Ordering, Receiving, Financials, Reporting, Rules, and Support. The expected
+          outcome is fully satisfied.
+      selectors: []
+      assertions: []
+  step_002:
+    step_id: step_002
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:36:22.558687+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: Home
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: navigate
+      args:
+        target: /buyer/nyc/rctevol2/s3sr2/default.aspx
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: navigate
+      args:
+        target: /
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requisition menu item visible in top navigation bar
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Home page has loaded successfully and the top navigation bar
+          contains a Main Menu with a button labeled "Requisition". This is clearly
+          visible in the navigation structure between "Catalog" and "Sourcing" menu
+          items.
+      selectors: []
+      assertions:
+      - Requisition
+      - Catalog
+      - Sourcing
+  step_003:
+    step_id: step_003
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:36:35.240003+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Requisition
+      selectors:
+      - type: xpath
+        value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Requisition
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requisition dropdown opened showing Browse Requisitions link
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: After clicking the Requisition menu item, the dropdown expanded
+          successfully and displays a 'Browse Requisitions' link. The page structure
+          confirms the button is in the expanded state and contains a nested list
+          with the 'Browse Requisitions' link pointing to /buyer/nyc/rctevol2/s3sr2/page.aspx/en/ord/basket_browse.
+      selectors: []
+      assertions:
+      - Browse Requisitions
+  step_004:
+    step_id: step_004
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:36:46.809954+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Browse Requisitions
+      selectors:
+      - type: xpath
+        value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/ul/li/a
+        successes: 1
+        failures: 0
+      - type: text
+        value: Browse Requisitions
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Browse Requisitions page with navigation options
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The Browse Requisitions page is now loaded and displays all three
+          required navigation options as links: ''Create Sourcing Requisition'', ''Browse
+          Goods Catalog'', and ''Browse Master Agreements''. All three are visible
+          in the main content area at the top of the page before the requisitions
+          table.'
+      selectors: []
+      assertions:
+      - Create Sourcing Requisition
+      - Browse Goods Catalog
+      - Browse Master Agreements
+  step_005:
+    step_id: step_005
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:38:01.322632+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Create Sourcing Requisition
+      selectors:
+      - type: xpath
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
+        successes: 1
+        failures: 0
+      - type: text
+        value: Create Sourcing Requisition
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Create Requisition form opened with page title and Requisition Header
+          section visible
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Clicking the 'Create Sourcing Requisition' button successfully
+          opened the Create Requisition form. The page title is 'Create Requisition'
+          and the Requisition Header section is clearly visible with all the expected
+          form fields and structure.
+      selectors: []
+      assertions:
+      - Create Requisition
+  step_006:
+    step_id: step_006
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:38:09.042776+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Status field showing Draft value and read-only state
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Status field on the Create Requisition form displays 'Draft'
+          as the default value and is disabled (read-only) as indicated by the [disabled]
+          attribute in the combobox element. The field cannot be edited by the user.
+      selectors: []
+      assertions:
+      - Draft
+  step_007:
+    step_id: step_007
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:38:15.781026+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Type field showing Sourcing value and read-only state
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Type field (labeled as "Draft Type") on the Create Requisition
+          form displays 'Sourcing' as the default value and is disabled (read-only)
+          as indicated by the [disabled] attribute in the combobox element. The field
+          cannot be edited by the user.
+      selectors: []
+      assertions:
+      - Draft Type
+      - Sourcing
+  step_008:
+    step_id: step_008
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:38:22.025086+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requestor field pre-filled with logged-in user value
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Requestor field on the Create Requisition form is pre-filled
+          with a non-empty value representing the currently logged-in user (visible
+          in the top-right corner as "P. test"). The field is marked as [disabled],
+          making it read-only and confirming the pre-filled value cannot be changed.
+      selectors: []
+      assertions:
+      - P. test
+  step_009:
+    step_id: step_009
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:39:29.121819+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Label field marked as mandatory in Requisition Header section
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Label field is clearly visible in the Requisition Header section
+          of the Create Requisition form, marked with an asterisk (*) to indicate
+          it is mandatory. The page structure shows the heading "Requisition Header"
+          followed by the "Sourcing Label *" text and textbox labeled "Label *". This
+          matches the expected outcome exactly.
+      selectors: []
+      assertions:
+      - Requisition Header
+      - Sourcing Label *
+      - Label *
+  step_010:
+    step_id: step_010
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:39:37.821630+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requesting Agency field marked as mandatory dropdown in Requisition
+          Header
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Requesting Agency field is clearly visible on the Create Requisition
+          form in the Requisition Header section, marked with an asterisk (*) to indicate
+          it is mandatory. The page structure explicitly shows "combobox 'Requesting
+          Agency *'", confirming it is a dropdown field. This matches the expected
+          outcome exactly.
+      selectors: []
+      assertions:
+      - Requesting Agency *
+  step_011:
+    step_id: step_011
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:39:44.576107+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Anticipated Contract Period start and end dates both marked as mandatory
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Both date fields for Anticipated Contract Period are clearly visible
+          on the Create Requisition form and are marked as mandatory with asterisks
+          (*). The start date field shows "(M/d/yyyy) *" and the end date field (under
+          "to:") also shows "(M/d/yyyy) *", confirming that both fields are mandatory
+          as expected.
+      selectors: []
+      assertions:
+      - (M/d/yyyy) *
+      - 'to:'
+  step_012:
+    step_id: step_012
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:39:51.991792+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Procurement Description and Executive Summary text area marked as mandatory
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Procurement Description and Executive Summary text area is
+          clearly visible on the Create Requisition form. The text area is labeled
+          "Executive Summary" and is marked as mandatory with an asterisk (*), as
+          indicated by the message "This field cannot exceed the 4000 character limit
+          *" and the asterisk symbol displayed in the section. This matches the expected
+          outcome exactly.
+      selectors: []
+      assertions:
+      - Executive Summary
+      - This field cannot exceed the 4000 character limit *
+  step_013:
+    step_id: step_013
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:40:13.197623+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Save
+      selectors:
+      - type: xpath
+        value: //*[@id="proxyActionBar_x__cmdSave"]
+        successes: 1
+        failures: 0
+      - type: text
+        value: Save
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Validation errors displayed for all five mandatory fields
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Clicking Save on the empty form triggered all five validation
+          errors as expected. The alert block displays: (1) "Label must have a value",
+          (2) "Requesting Agency must have a value", (3) "must have a value (Expected
+          date format: M/d/yyyy)" for the first date field, (4) "must have a value
+          (Expected date format: M/d/yyyy)" for the second date field, and (5) "Executive
+          Summary must have a value". The form was not submitted - the page remains
+          on the same Create Requisition form with the URL unchanged. All validation
+          errors are marked as "Blocking errors" and displayed inline next to their
+          respective fields.'
+      selectors: []
+      assertions:
+      - Label must have a value
+      - Requesting Agency must have a value
+      - 'must have a value (Expected date format: M/d/yyyy)'
+      - Executive Summary must have a value
+      - Blocking errors
+  step_014:
+    step_id: step_014
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:40:20.229953+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Empty Create Requisition form - no Division field visible
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The empty Create Requisition form displays without a Division field
+          visible. The Requesting Agency field is shown but has no value selected.
+          The semantic page analysis shows all form fields in the Requisition Header
+          section, and Division is not among them. This confirms the Division field
+          is conditionally hidden and only becomes visible after a Requesting Agency
+          is selected.
+      selectors: []
+      assertions: []
+  step_015:
+    step_id: step_015
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:40:35.065253+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Requesting Agency
+        value: '{{requesting_agency}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Requesting Agency selected showing Department of Homeless Services
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Requesting Agency field successfully displays "DEPARTMENT OF
+          HOMELESS SERVICES" as a non-empty selected value. The field shows the chosen
+          agency name, and a "Delete the value" button is present, confirming the
+          selection is active. The value matches the test data provided (Department
+          of Homeless Services).
+      selectors: []
+      assertions:
+      - DEPARTMENT OF HOMELESS SERVICES
+      - Delete the value
+      - Department of Homeless Services
+  step_016:
+    step_id: step_016
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:40:40.496330+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Division field visible and marked as mandatory with asterisk
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The Division field is clearly visible on the form and is marked
+          as mandatory with an asterisk (*). The page snapshot shows "text: Division
+          *" and "combobox ''Division *''" confirming both the visibility and mandatory
+          status. This field appeared only after the Requesting Agency (Department
+          of Homeless Services) was selected in the previous step.'
+      selectors: []
+      assertions:
+      - 'text: Division *'
+      - Division *
+  step_017:
+    step_id: step_017
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:41:53.502925+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Division
+        value: '{{division}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Division field shows selected value Chief of Staff
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Division field successfully accepted the selection and displays
+          "CHIEF OF STAFF" as the selected value. The page snapshot clearly shows
+          the Division combobox with the text "CHIEF OF STAFF" displayed below it,
+          and a "Delete the value" button confirming the active selection. The test
+          data value (Chief of Staff) was successfully selected and is now showing
+          in the field.
+      selectors: []
+      assertions:
+      - CHIEF OF STAFF
+      - Delete the value
+      - Chief of Staff
+  step_018:
+    step_id: step_018
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:42:10.337272+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Contract Type
+        value: '{{contract_type}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Contract Type field shows selected value General Contract (CT1)
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Contract Type field successfully accepted the selection and
+          displays "General Contract (CT1)" as the selected contract type. The page
+          snapshot clearly shows the Contract Type combobox with the text "General
+          Contract (CT1)" displayed below it, and a "Delete the value." button confirming
+          the active selection. The test data value (General Contract (CT1)) was successfully
+          selected and is now showing in the field.
+      selectors: []
+      assertions:
+      - General Contract (CT1)
+      - Delete the value.
+  step_019:
+    step_id: step_019
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:42:15.095352+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: take_screenshot
+      args:
+        label: Funding Type field visible and marked as mandatory with asterisk
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The Funding Type field is clearly visible on the form and is marked
+          as mandatory with an asterisk (*). The page snapshot from the previous step
+          shows "text: Funding Type *" and "combobox ''Funding Type *''" confirming
+          both the visibility and mandatory status. This field appears after the Contract
+          Type has been set to "General Contract (CT1)", as required by the claim.'
+      selectors: []
+      assertions: []
+  step_020:
+    step_id: step_020
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:42:23.714638+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Label
+        value: '{{label}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Label field on the Create Requisition form accepted the value
+          "Test Requisition MVP" and displays it correctly. The page snapshot clearly
+          shows the textbox with the label "Label *" containing the value "Test Requisition
+          MVP".
+      selectors: []
+      assertions:
+      - Test Requisition MVP
+      - Label *
+  step_021:
+    step_id: step_021
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:43:01.574490+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Anticipated Contract Period
+        value: '{{contract_period_start}}'
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: (M/d/yyyy) *
+        value: '{{contract_period_start}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: to
+        value: '{{contract_period_end}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Anticipated Contract Period dates filled
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Label
+      selectors:
+      - type: xpath
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[3]/td/div/label/span
+        successes: 1
+        failures: 0
+      - type: text
+        value: Label
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Both Anticipated Contract Period date fields have been successfully
+          filled and display the correct values. The start date field shows "6/1/2026"
+          and the end date field shows "5/31/2027", matching the test data provided
+          (contract_period_start: 6/1/2026 and contract_period_end: 5/31/2027).'
+      selectors: []
+      assertions:
+      - 6/1/2026
+      - 5/31/2027
+  step_022:
+    step_id: step_022
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:43:13.683132+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Funding Type
+        value: '{{funding_type}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selAtypeCodeFundType_search"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Funding Type field has successfully accepted the selection
+          and displays "Expense" as the selected value. The page snapshot shows the
+          Funding Type combobox with "Expense" displayed immediately after it, confirming
+          the selection was properly made.
+      selectors: []
+      assertions:
+      - Expense
+  step_023:
+    step_id: step_023
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:43:24.956243+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Executive Summary
+        value: '{{procurement_description}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskProcExeSum"]
+        successes: 1
+        failures: 0
+      - type: aria_label
+        value: Executive Summary
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Procurement Description / Executive Summary text area has successfully
+          accepted the input and displays the entered text "Test procurement for auditor
+          MVP verification". The page snapshot clearly shows the textbox with the
+          label "Executive Summary" containing the exact value that was entered.
+      selectors: []
+      assertions:
+      - Test procurement for auditor MVP verification
+      - Executive Summary
+  step_024:
+    step_id: step_024
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:43:51.768766+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Save
+      selectors:
+      - type: xpath
+        value: //*[@id="proxyActionBar_x__cmdSave"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'After saving the requisition form, the page now displays a heading
+          with the format ''Requisition: REQ262404 - Test Requisition MVP (Draft)'',
+          confirming a unique REQ number has been assigned. Both required buttons
+          ''Cancel requisition'' and ''Duplicate Req.'' are visible on the page. The
+          success message "Data has been saved" also confirms the save operation completed
+          successfully. All expected outcome requirements are met.'
+      selectors: []
+      assertions:
+      - Data has been saved
+      - Cancel requisition
+      - Duplicate Req.
+  step_025:
+    step_id: step_025
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:44:04.571497+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Procurement Method
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_containerTab_partprxtab_tabc_190731104948"]
+        successes: 1
+        failures: 0
+      - type: text
+        value: Procurement Method
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Procurement Method Questionnaire section visible with Estimated Total
+          Cost and PM Req fields
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The Procurement Method Questionnaire section is clearly visible
+          on the saved requisition (REQ262404). The section contains both required
+          fields: (1) Estimated Total Cost field (textbox visible), and (2) PM Req
+          field (displaying "REQ262404-Test Requisition MVP"). All expected elements
+          are present and properly rendered on the Procurement Method tab.'
+      selectors: []
+      assertions: []
+  step_026:
+    step_id: step_026
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:44:09.691772+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Procurement Method combobox visible in Select the Procurement Method
+          Below section
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The 'Procurement Method' combobox is clearly visible in the 'Select
+          the Procurement Method Below' section of the PMQ (Procurement Method Questionnaire).
+          The page snapshot shows this combobox field is present and accessible within
+          the expected section.
+      selectors: []
+      assertions:
+      - Procurement Method
+      - Select the Procurement Method Below
+  step_027:
+    step_id: step_027
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-13T20:44:37.344482+00:00'
+    run_id: run_61d7fbc2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: select_option
+      args:
+        field_label: Procurement Method
+        option_value: '{{procurement_method}}'
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Procurement Method
+        value: '{{procurement_method}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_selPmethCodeReq_search"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Procurement Method field shows Emergency as selected value
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Procurement Method combobox has been successfully populated
+          with "Emergency". The page snapshot confirms that the field now displays
+          the selected value "Emergency" along with a "Delete the value." button,
+          indicating the selection was successful. The expected outcome requiring
+          the Procurement Method field to show the selected procurement method value
+          is satisfied.
+      selectors: []
+      assertions:
+      - Emergency
+      - Delete the value.

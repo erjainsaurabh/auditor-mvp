@@ -225,12 +225,18 @@ class LLMClient:
                     messages=[self._system_message] + messages,
                     tools=_TOOL_DEFINITIONS,
                     max_tokens=self._max_tokens,
+                    timeout=120,   # seconds — prevents indefinite hang on stalled connections
                 )
             except litellm.RateLimitError:
                 wait = 60 * (attempt + 1)
                 print(f"    [rate limit] waiting {wait}s before retry {attempt + 1}/3…")
                 time.sleep(wait)
-        raise RuntimeError("rate limit: exhausted 3 retries")
+            except (litellm.APIConnectionError, litellm.Timeout,
+                    litellm.APIError, Exception) as e:
+                wait = 30 * (attempt + 1)
+                print(f"    [llm error] {type(e).__name__}: {e} — waiting {wait}s before retry {attempt + 1}/3…")
+                time.sleep(wait)
+        raise RuntimeError("LLM call failed: exhausted 3 retries")
 
     def extract(self, prompt: str) -> str:
         response = litellm.completion(

@@ -1,54 +1,4 @@
 steps:
-  step_001:
-    step_id: step_001
-    recorded_at: '2026-05-12T03:11:29.725323+00:00'
-    run_id: run_f5514ff5
-    verdict: verified
-    confidence: high
-    actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: verify_claim
-      args:
-        verdict: verified
-        confidence: high
-        reasoning: The home page successfully loaded after login. The main navigation
-          menu is clearly visible with all expected items including Vendors, Catalog,
-          Requisition, Sourcing, Contracts, Ordering, Receiving, Financials, Reporting,
-          Rules, Support, and Vendor Reporting. The page title shows "Home Page" and
-          the user is logged in as "DHS A." The expected outcome of a successful login
-          with main navigation menu display has been confirmed.
-      selectors: []
-      assertions:
-      - Home Page
-      - DHS A.
-    setup_records:
-    - tool: fill_field
-      args:
-        field_label: Email Address
-        value: DHSACCOSTAFFADMINTWO@doitt.nyc.gov
-      selectors:
-      - type: xpath
-        value: //*[@id="Ecom_User_ID"]
-        successes: 5
-        failures: 0
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Password
-        value: '****'
-      selectors:
-      - type: xpath
-        value: //*[@id="Ecom_Password"]
-        successes: 5
-        failures: 0
-      assertions: []
-    - tool: submit_form
-      args: {}
-      selectors: []
-      assertions: []
   step_002:
     step_id: step_002
     recorded_at: '2026-05-12T02:21:11.893210+00:00'
@@ -66,7 +16,7 @@ steps:
       selectors:
       - type: xpath
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/button
-        successes: 5
+        successes: 6
         failures: 0
       - type: text
         value: Requisition
@@ -101,7 +51,7 @@ steps:
       selectors:
       - type: xpath
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/ul/li/a
-        successes: 5
+        successes: 6
         failures: 0
       - type: text
         value: Browse Requisitions
@@ -143,7 +93,7 @@ steps:
       selectors:
       - type: xpath
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
-        successes: 5
+        successes: 6
         failures: 0
       - type: text
         value: Create Sourcing Requisition
@@ -384,7 +334,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 5
+        successes: 6
         failures: 0
       - type: text
         value: Save
@@ -436,7 +386,7 @@ steps:
       selectors:
       - type: xpath
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[5]/td/div/label/span
-        successes: 5
+        successes: 6
         failures: 0
       - type: text
         value: Requesting Agency
@@ -481,7 +431,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
-        successes: 5
+        successes: 6
         failures: 0
       assertions: []
     - tool: read_page
@@ -494,7 +444,7 @@ steps:
       selectors:
       - type: text
         value: DEPARTMENT OF HOMELESS SERVICES
-        successes: 5
+        successes: 6
         failures: 0
       assertions: []
     - tool: read_page
@@ -567,7 +517,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
-        successes: 5
+        successes: 6
         failures: 0
       assertions: []
     - tool: read_page
@@ -580,7 +530,7 @@ steps:
       selectors:
       - type: text
         value: CHIEF OF STAFF
-        successes: 5
+        successes: 6
         failures: 0
       assertions: []
     - tool: read_page
@@ -621,7 +571,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
-        successes: 5
+        successes: 6
         failures: 0
       assertions: []
     - tool: read_page
@@ -634,7 +584,7 @@ steps:
       selectors:
       - type: text
         value: General Contract (CT1)
-        successes: 5
+        successes: 6
         failures: 0
       assertions: []
     - tool: read_page
@@ -712,7 +662,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
-        successes: 4
+        successes: 5
         failures: 0
       assertions: []
     - tool: read_page
@@ -733,8 +683,8 @@ steps:
     setup_records: []
   step_020:
     step_id: step_020
-    recorded_at: '2026-05-12T03:12:18.075143+00:00'
-    run_id: run_f5514ff5
+    recorded_at: '2026-05-12T03:18:14.211555+00:00'
+    run_id: run_9db8e47e
     verdict: verified
     confidence: high
     actions:
@@ -758,6 +708,10 @@ steps:
         successes: 1
         failures: 0
       assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
     - tool: fill_field
       args:
         field_label: to
@@ -778,28 +732,38 @@ steps:
       assertions: []
     - tool: take_screenshot
       args:
-        label: Anticipated Contract Period dates filled with 6/1/2026 and 5/31/2027
+        label: Anticipated Contract Period dates verification
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: Both Anticipated Contract Period date fields are now filled with
-          the correct values. The start date field shows 6/1/2026 and the end date
-          field (marked as "to:") shows 5/31/2027, as confirmed by the screenshot.
+        reasoning: 'Both Anticipated Contract Period date fields are now populated
+          with the correct values: Start date shows 6/1/2026 and End date shows 5/31/2027.
+          The form fields successfully accepted and display the entered date values
+          as expected.'
       selectors: []
       assertions: []
     setup_records: []
   step_021:
     step_id: step_021
-    recorded_at: '2026-05-12T03:12:41.197267+00:00'
-    run_id: run_f5514ff5
+    recorded_at: '2026-05-12T03:18:43.085207+00:00'
+    run_id: run_9db8e47e
     verdict: verified
     confidence: high
     actions:
     - tool: read_page
       args: {}
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Current page state
       selectors: []
       assertions: []
     - tool: fill_field
@@ -831,17 +795,17 @@ steps:
       assertions: []
     - tool: take_screenshot
       args:
-        label: Funding Type field shows Expense selected
+        label: Funding Type field shows Expense selection
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: The Funding Type field has been successfully filled with the selection
-          "Expense". The page snapshot and screenshot both confirm that the Funding
-          Type combobox now displays "Expense" with a "Delete the value." button adjacent
-          to it, indicating the selection is active.
+        reasoning: The Funding Type field has successfully accepted and displayed
+          the "Expense" selection. The field shows "Expense" as the selected value
+          with a "Delete the value." button adjacent to it, indicating that the selection
+          has been properly registered in the form.
       selectors: []
       assertions:
       - Expense

@@ -34,7 +34,11 @@ class IvaluaBrowserSession(BrowserSession):
                     'ul[role="listbox"], .iv-menu-container ul, .scrolling.menu.visible'
                 );
                 for (const lb of containers) {{
-                    if (!lb.offsetParent) continue;
+                    // Use getBoundingClientRect instead of offsetParent —
+                    // offsetParent is null for position:fixed/absolute in headless
+                    // Chrome even when the element is visually present.
+                    const rect = lb.getBoundingClientRect();
+                    if (rect.width === 0 && rect.height === 0) continue;
                     const items = Array.from(lb.querySelectorAll('li, [role="option"], a, span'));
                     // Exact match first
                     let item = items.find(el => el.textContent.trim() === "{js_desc}");
@@ -103,6 +107,66 @@ class IvaluaBrowserSession(BrowserSession):
         except Exception:
             pass
 
+    def _click_autocomplete_item(self, value: str) -> str | None:
+        """
+        Ivalua-specific: after typing into an autocomplete field, poll for a
+        matching dropdown item and click it atomically (up to 8 s, 1 s per try).
+
+        Uses getBoundingClientRect for visibility — offsetParent is null for
+        absolutely-positioned dropdowns in headless Chrome even when the element
+        is visually present, so offsetParent checks always fail in Docker/CI.
+
+        Searches ALL li and [role="option"] elements (no container assumption) —
+        the Ivalua dropdown structure varies across widget types and versions, and
+        the only reliable marker is the item text itself.
+        """
+        page = self._page
+        js_value = value.replace("\\", "\\\\").replace('"', '\\"').lower()
+
+        for attempt in range(8):
+            page.wait_for_timeout(1000)
+            try:
+                result = page.evaluate(f"""() => {{
+                    const search = "{js_value}";
+                    // Cast a wide net: all li / option candidates on the page
+                    const candidates = document.querySelectorAll(
+                        'li, [role="option"], .iv-menu-container a, .scrolling.menu a'
+                    );
+                    // Collect diagnostic info: all candidate texts + visibility
+                    const candidateInfo = Array.from(candidates).map(el => {{
+                        const text = (el.textContent || '').trim().substring(0, 60);
+                        const rect = el.getBoundingClientRect();
+                        return text + (rect.width > 0 && rect.height > 0 ? ' [visible]' : ' [hidden]');
+                    }});
+                    for (const el of candidates) {{
+                        const text = (el.textContent || '').trim();
+                        const textLower = text.toLowerCase();
+                        // Exact match (case-insensitive) or value is a prefix of item text
+                        if (textLower === search || textLower.startsWith(search)) {{
+                            // Confirm the element is actually rendered/visible
+                            const rect = el.getBoundingClientRect();
+                            if (rect.width > 0 && rect.height > 0) {{
+                                el.click();
+                                return {{clicked: text, candidates: candidateInfo}};
+                            }}
+                        }}
+                    }}
+                    return {{clicked: null, candidates: candidateInfo}};
+                }}""")
+                if result:
+                    candidates = result.get("candidates", [])
+                    clicked = result.get("clicked")
+                    print(f"           [autocomplete-click] attempt {attempt + 1}: {len(candidates)} candidates — {candidates[:10]}")
+                    if clicked:
+                        page.wait_for_timeout(2500)
+                        print(f"           [autocomplete-click] selected '{clicked}'")
+                        return clicked
+            except Exception as e:
+                print(f"           [autocomplete-click] attempt {attempt + 1} error: {e}")
+
+        print(f"           [autocomplete-click] no item found for '{value}' after 8 s")
+        return None
+
     def _platform_fill_strategies(self, label: str, slug: str, value: str) -> str | None:
         """
         Three Ivalua-specific fill strategies tried in order before generic ones.
@@ -162,13 +226,26 @@ class IvaluaBrowserSession(BrowserSession):
                 # handlers (which can open/close the dropdown and corrupt XHR state).
                 # Ctrl+A selects any stale content; press_sequentially replaces the
                 # selection character-by-character to fire per-keystroke XHR searches.
-                loc.focus(timeout=2000)
+                # Use click() rather than focus() — in headless Docker the
+                # Division field is often below the fold and focus() doesn't
+                # scroll it into view or fire the mouse events that Ivalua
+                # needs to activate its autocomplete XHR listener.
+                # click() auto-scrolls + dispatches the full mouse event chain.
+                loc.click(timeout=2000)
                 page.wait_for_timeout(150)
                 page.keyboard.press("Control+a")
                 page.wait_for_timeout(50)
                 loc.press_sequentially(value, delay=80)
-                page.wait_for_timeout(3000)
+                # Atomically click the matching dropdown item.
+                # _click_autocomplete_item polls for up to 8 s and uses
+                # getBoundingClientRect (not offsetParent) so it works in
+                # headless Docker/CI where offsetParent is null for positioned
+                # elements. Falls back to None if item never appears.
+                clicked = self._click_autocomplete_item(value)
                 self._last_selectors = self._extract_selectors(loc)
+                if clicked:
+                    return f"filled '{label}' with '{value}' — selected '{clicked}' (ivalua-autocomplete)"
+                print(f"           [fill ivalua-autocomplete] typed but dropdown did not appear for '{value}' — XHR may not have fired")
                 return f"filled '{label}' with '{value}' (ivalua-autocomplete)"
             else:
                 print(f"           [fill ivalua-autocomplete] not found: {result}")
@@ -256,8 +333,12 @@ class IvaluaBrowserSession(BrowserSession):
             page.keyboard.press("Control+a")
             page.wait_for_timeout(50)
             loc.press_sequentially(value, delay=80)
-            page.wait_for_timeout(3000)
+            # Atomically click the matching dropdown item — same approach as
+            # _fill_ivalua_autocomplete (see comment there for rationale).
+            clicked = self._click_autocomplete_item(value)
             self._last_selectors = self._extract_selectors(loc)
+            if clicked:
+                return f"filled '{label}' with '{value}' — selected '{clicked}' (combobox-aria)"
             return f"filled '{label}' with '{value}' (combobox-aria)"
         except Exception as e:
             print(f"           [fill combobox-aria] failed: {e}")

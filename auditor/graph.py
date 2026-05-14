@@ -51,11 +51,39 @@ def build_step_graph(steps: list[Step]) -> nx.DiGraph:
 
 
 def condition_execution_order(g: nx.DiGraph) -> list[str]:
-    return list(nx.topological_sort(g))
+    """Return test-condition IDs in dependency-safe execution order.
+
+    Within each topological generation (conditions with no ordering constraint
+    between them) the `sequence` field is used as a tiebreaker so that the
+    YAML author controls relative order explicitly.  sequence=0 preserves
+    graph-insertion order (effectively file order).
+    """
+    result = []
+    for generation in nx.topological_generations(g):
+        result.extend(
+            sorted(generation, key=lambda tc_id: g.nodes[tc_id]["test_condition"].sequence)
+        )
+    return result
 
 
 def step_execution_order(g: nx.DiGraph) -> list[str]:
-    return list(nx.topological_sort(g))
+    """Return step IDs in dependency-safe execution order.
+
+    Uses topological_generations to group steps that have no ordering
+    constraint between them (neither directly nor transitively depends on
+    the other).  Within each generation, steps are sorted by their
+    `sequence` field (ascending) so the YAML author can resolve ambiguity
+    explicitly.  Steps with sequence=0 (the default) preserve file-insertion
+    order relative to each other — networkx topological_generations respects
+    graph insertion order within a generation.
+    """
+    result = []
+    for generation in nx.topological_generations(g):
+        # g.nodes[sid]['step'] is set by build_step_graph — always present here
+        result.extend(
+            sorted(generation, key=lambda sid: g.nodes[sid]["step"].sequence)
+        )
+    return result
 
 
 def cascade_condition_failure(g: nx.DiGraph, tc_id: str) -> list[str]:
