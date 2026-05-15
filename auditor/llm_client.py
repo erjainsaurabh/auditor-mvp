@@ -202,16 +202,20 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
 
 
 class LLMClient:
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], platform_guidance: str = "") -> None:
         self._reasoning_model: str = config["reasoning_model"]
         self._fast_model: str = config["fast_model"]
         self._max_tokens: int = config.get("max_tokens", 4096)
         self._cache: bool = config.get("cache_system_prompt", True)
 
+        system_text = _SYSTEM_PROMPT
+        if platform_guidance:
+            system_text = system_text + "\n" + platform_guidance.strip()
+
         content: list[dict[str, Any]] = [
             {
                 "type": "text",
-                "text": _SYSTEM_PROMPT,
+                "text": system_text,
                 **({"cache_control": {"type": "ephemeral"}} if self._cache else {}),
             }
         ]

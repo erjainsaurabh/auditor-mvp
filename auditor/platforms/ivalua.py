@@ -11,7 +11,259 @@ from auditor.tools import BrowserSession
 
 
 class IvaluaBrowserSession(BrowserSession):
+
+    # ------------------------------------------------------------------
+    # Behavioral patterns — injected into LLM system prompt at run start.
+    # These are planning-layer rules the LLM needs before it acts.
+    # DOM-level strategies (how to execute) live in the methods below.
+    # ------------------------------------------------------------------
+    PLATFORM_GUIDANCE = """
+IVALUA BROWSE LIST PAGE RULES:
+- Browse list pages (Browse Contract Budgets, Browse Requisitions, etc.) have TWO Search buttons:
+  1. LEFT FILTER PANEL Search — submits the filter panel (Status, Agency, Doc ID, etc.).
+     To trigger this, call: click('filter panel search') or click('Search')
+     This routes directly to the panel's Search button (name=body:x:prxAdvFilterBar:x:cmdSearchBtn).
+  2. MAIN PANE Search — keyword/text search in the main content header area.
+     To trigger this, call: click('main search') or click('keyword search')
+     This uses normal text matching against the header Search button.
+  IMPORTANT: always use the exact descriptions above — never call click('Search') alone,
+  as it is ambiguous when both buttons are visible.
+- To open a specific record from results, click its ID link (e.g. "PO074788") — blue hyperlinks
+  in the first column of the results table.
+- Filter chips appear above the results table showing active filters (e.g. Status: Active ×,
+  PO Type: CT1 × POCR ×). These persist across searches — check the chips row before setting
+  filters to avoid duplicating selections already active.
+- Multi-select chip fields (e.g. PO Type, Status): to ADD a value use fill_field with the field
+  label and the value; to REMOVE a specific chip click the × button next to that chip's text.
+"""
     """BrowserSession configured for Ivalua SaaS procurement platform."""
+
+    # ------------------------------------------------------------------
+    # Browse list page — Search button + chip multiselect
+    # ------------------------------------------------------------------
+
+    def _trigger_panel_search(self) -> str | None:
+        """Click the left filter panel Search button via JavaScript.
+
+        Browse list pages have two Search buttons:
+          - Left panel (filter): name="body:x:prxAdvFilterBar:x:cmdSearchBtn"
+            — submits the active filter panel selections (Status, Agency, etc.)
+          - Main content header: a separate Search input/button for keyword search
+
+        Text-based click strategies cannot reliably distinguish them, and
+        Playwright actionability checks fail when a chip-multiselect dropdown
+        is open on top of the button. This method uses a JS querySelector with
+        multiple fallback selectors to click the panel button unconditionally.
+        """
+        page = self._page
+        try:
+            # Use a JS click to bypass Playwright actionability checks.
+            # A chip/multiselect dropdown (e.g. Status options) can be open on
+            # top of the panel Search button — Playwright's native click() would
+            # fail with "element covered by another element".  Pressing Escape
+            # to dismiss the dropdown first risks closing the filter panel itself
+            # (Ivalua routes Escape to the panel close handler in some versions).
+            # A direct JS btn.click() fires the submit handler unconditionally
+            # regardless of any overlay — the safest approach.
+            found = page.evaluate("""() => {
+                // Try selectors in priority order — Ivalua generates IDs from
+                // the control name hierarchy (colons → underscores) so the exact
+                // ID varies by page but the pattern is stable.
+                const selectors = [
+                    // Ivalua advanced filter bar Search button (Browse list pages)
+                    '[name="body:x:prxAdvFilterBar:x:cmdSearchBtn"]',
+                    '#body_x_prxAdvFilterBar_x_cmdSearchBtn',
+                    // Fallback: any submit button inside the left filter panel buttons div
+                    '.iv-filter-panel-buttons button[type="submit"]',
+                    '.iv-filter-panel-buttons button',
+                    '#leftPanel .iv-filter-panel-buttons button',
+                    // Legacy ID that was assumed (may exist on older Ivalua versions)
+                    '#leftPanel_btnPanelSearch',
+                ];
+                for (const sel of selectors) {
+                    const btn = document.querySelector(sel);
+                    if (btn) {
+                        btn.click();
+                        return 'clicked:' + sel;
+                    }
+                }
+                return 'not-found';
+            }""")
+            print(f"           [panel-search] JS result: {found!r}")
+            if found and found.startswith('clicked'):
+                page.wait_for_load_state("networkidle", timeout=8000)
+                self._last_selectors = [
+                    {"type": "xpath",
+                     "value": '//*[@name="body:x:prxAdvFilterBar:x:cmdSearchBtn"]',
+                     "successes": 1, "failures": 0}
+                ]
+                print(f"           [panel-search] clicked left panel Search button (JS)")
+                return "clicked panel Search button"
+        except Exception as e:
+            print(f"           [panel-search] failed: {e}")
+        return None
+
+    def _fill_chip_multiselect(self, label: str, value: str) -> str | None:
+        """Add a value to a chip/token multi-select field (e.g. PO Type).
+
+        Ivalua chip fields look like a tag input — typing triggers a dropdown,
+        clicking the item adds it as a chip. Delegates to the autocomplete
+        strategy since the widget behaves identically after the first click.
+        """
+        page = self._page
+        try:
+            result = page.evaluate("""(lbl) => {
+                const labels = Array.from(document.querySelectorAll(
+                    '[data-iv-role="label"], label, th, .field-label, legend'
+                ));
+                const match = labels.find(el => {
+                    const t = el.textContent.trim().replace(/\\s*\\*\\s*$/, '').trim();
+                    return t === lbl || t.startsWith(lbl);
+                });
+                if (!match) return {found: false, reason: 'label not found'};
+                const wrapper = match.closest('[data-iv-role="controlWrapper"]')
+                              || match.parentElement;
+                if (!wrapper) return {found: false, reason: 'no wrapper'};
+                const inp = wrapper.querySelector('input[type="text"], input.search, input[role="combobox"]');
+                if (!inp) return {found: false, reason: 'no input'};
+                return {found: true, id: inp.id, name: inp.name};
+            }""", label)
+
+            if result and result.get("found"):
+                inp_id = result.get("id")
+                loc = page.locator(f"#{inp_id}").first if inp_id else None
+                if not loc:
+                    return None
+                loc.click(timeout=2000)
+                page.wait_for_timeout(150)
+                loc.press_sequentially(value, delay=80)
+                clicked = self._click_autocomplete_item(value)
+                self._last_selectors = self._extract_selectors(loc)
+                return (
+                    f"added chip '{value}' to '{label}' (chip-multiselect)"
+                    if clicked else
+                    f"typed '{value}' in '{label}' — chip may not have appeared"
+                )
+            else:
+                print(f"           [chip-multiselect] not found: {result}")
+        except Exception as e:
+            print(f"           [chip-multiselect] failed: {e}")
+        return None
+
+    def _clear_chip(self, chip_text: str) -> str | None:
+        """Remove a specific chip/token from a multi-select field by clicking its × button.
+
+        Searches all visible chip delete buttons for one whose sibling text
+        matches chip_text (exact, then contains). Used when a filter chip
+        needs to be cleared before setting a fresh value.
+        """
+        page = self._page
+        js_text = chip_text.replace("\\", "\\\\").replace('"', '\\"').lower()
+        try:
+            result = page.evaluate(f"""() => {{
+                const chips = document.querySelectorAll(
+                    '.iv-chip, [data-iv-role="chip"], .label.transition, .ui.label'
+                );
+                for (const chip of chips) {{
+                    const text = chip.textContent.trim().toLowerCase();
+                    if (text === "{js_text}" || text.includes("{js_text}")) {{
+                        const del = chip.querySelector(
+                            'button, [data-iv-role="delete"], .delete, i.delete.icon'
+                        );
+                        if (del) {{ del.click(); return {{removed: chip.textContent.trim()}}; }}
+                    }}
+                }}
+                return {{removed: null}};
+            }}""")
+            if result and result.get("removed"):
+                page.wait_for_timeout(400)
+                print(f"           [clear-chip] removed chip: {result['removed']!r}")
+                return f"removed chip '{result['removed']}'"
+        except Exception as e:
+            print(f"           [clear-chip] failed: {e}")
+        return None
+
+    # ------------------------------------------------------------------
+    # Browse result table — click a record link by text
+    # ------------------------------------------------------------------
+
+    def _click_result_row_link(self, text: str) -> str | None:
+        """Click a link or table cell in browse list results by exact text match.
+
+        Ivalua browse list tables render record IDs (PO IDs, requisition IDs,
+        etc.) as <a> links in the first column.  Playwright's generic click
+        strategies (get_by_role/get_by_text) fail with "not visible" or timeout
+        when the element is inside an overflow:hidden table container whose
+        scroll position keeps the row outside the viewport — a common situation
+        on Ivalua list pages with many results.
+
+        This strategy uses JavaScript to:
+          1. Find the link by exact text (falls back to contains).
+          2. Call scrollIntoView() to bring it into the visible viewport.
+          3. Click it atomically in the same JS frame (avoids the race condition
+             where Playwright re-checks visibility between scroll and click).
+
+        getBoundingClientRect() is used for the post-scroll visibility check
+        because offsetParent is null for position:fixed/absolute children of
+        overflow:hidden containers in headless Chrome.
+        """
+        page = self._page
+        js_text = text.replace("\\", "\\\\").replace('"', '\\"')
+        try:
+            result = page.evaluate(f"""() => {{
+                const search = "{js_text}";
+
+                // Search for <a> tags inside tbody data cells only —
+                // excludes thead/th column headers and nav links.
+                const linkCandidates = Array.from(document.querySelectorAll(
+                    'tbody td a, tbody tr td a'
+                ));
+                let el = linkCandidates.find(e => e.textContent.trim() === search);
+                if (!el) el = linkCandidates.find(e => e.textContent.trim().includes(search));
+
+                if (el) {{
+                    el.scrollIntoView({{block: 'nearest', inline: 'nearest'}});
+                    // Verify it's now in viewport after scroll
+                    const r = el.getBoundingClientRect();
+                    el.click();
+                    return {{clicked: el.textContent.trim(), tag: el.tagName, visible: r.width > 0}};
+                }}
+
+                // Fallback: <td> cells in tbody with onclick (some Ivalua grids use td-level handlers)
+                const tdCandidates = Array.from(document.querySelectorAll('tbody td'));
+                const td = tdCandidates.find(e => e.textContent.trim() === search)
+                        || tdCandidates.find(e => e.textContent.trim().includes(search));
+                if (td) {{
+                    td.scrollIntoView({{block: 'nearest', inline: 'nearest'}});
+                    // Walk up to the nearest clickable ancestor (a, button, onclick)
+                    let target = td;
+                    for (let i = 0; i < 4 && target && target !== document.body; i++) {{
+                        if (target.onclick || target.tagName === 'A' || target.tagName === 'BUTTON') {{
+                            target.click();
+                            return {{clicked: target.textContent.trim(), tag: target.tagName, via: 'walk-up'}};
+                        }}
+                        target = target.parentElement;
+                    }}
+                    td.click();
+                    return {{clicked: td.textContent.trim(), tag: 'TD', via: 'direct'}};
+                }}
+
+                return null;
+            }}""")
+
+            if result:
+                clicked = result.get("clicked", "")
+                tag = result.get("tag", "")
+                via = result.get("via", "")
+                page.wait_for_load_state("networkidle", timeout=10000)
+                print(f"           [result-row-link] clicked <{tag}>: {clicked!r} {via or ''}")
+                self._last_selectors = [
+                    {"type": "text", "value": clicked, "successes": 1, "failures": 0}
+                ]
+                return f"clicked result link '{clicked}'"
+        except Exception as e:
+            print(f"           [result-row-link] failed: {e}")
+        return None
 
     # ------------------------------------------------------------------
     # Click: priority hook
@@ -19,13 +271,31 @@ class IvaluaBrowserSession(BrowserSession):
 
     def _platform_click_priority(self, desc: str) -> str | None:
         """
-        Ivalua-specific: when an autocomplete or static dropdown is open, clicking
-        via get_by_text() can hit the wrong element (e.g. a hidden conditional-field
-        label that contains the same word). Check visible listbox containers first —
-        including Ivalua's .iv-menu-container and Semantic UI .scrolling.menu.
+        Ivalua-specific priority click handler. Runs before generic strategies.
 
-        Tries exact match first, then contains-match as fallback.
+        1. Search button disambiguation: if desc is "Search" (or close variant),
+           try the left panel Search button first to avoid hitting the header Search.
+        2. Listbox/autocomplete: when a dropdown is open, target visible listbox
+           containers before falling through to generic get_by_text strategies.
         """
+        desc_lower = desc.lower().strip()
+
+        # -- Search button disambiguation ----------------------------------
+        # Route to the left panel Search button for both the explicit panel
+        # description and the plain "Search" fallback the LLM sometimes uses.
+        # "main search" / "keyword search" are excluded so they fall through
+        # to generic strategies and hit the main-pane Search button instead.
+        _panel_search_triggers = (
+            "filter panel search", "panel search", "left panel search",
+            "search",   # exact bare "Search" — most common LLM fallback
+        )
+        _main_search_exclusions = ("main search", "keyword search", "header search")
+        if (any(desc_lower == t for t in _panel_search_triggers)
+                and not any(desc_lower == ex for ex in _main_search_exclusions)):
+            result = self._trigger_panel_search()
+            if result:
+                return result
+            # Panel button not found on this page — fall through to generic strategies
         page = self._page
         js_desc = desc.replace("\\", "\\\\").replace('"', '\\"')
         try:
@@ -68,6 +338,34 @@ class IvaluaBrowserSession(BrowserSession):
                 return f"clicked '{desc}' (ivalua-listbox)"
         except Exception as e:
             print(f"           [ivalua-listbox] failed: {e}")
+
+        # -- Browse list result table links --------------------------------
+        # Record IDs (PO IDs, requisition IDs, etc.) appear as <a> links in
+        # the first column of browse result tables. Try the dedicated strategy
+        # only when no dropdown/listbox is currently open (to avoid clicking
+        # a table cell instead of a listbox option when both are visible).
+        # Only try the table-link strategy for compact single-token identifiers
+        # (no spaces, e.g. "PO074788") — never for UI labels like "Search",
+        # "filter panel search", or column header text.
+        if ' ' not in desc:
+            try:
+                listbox_open = page.evaluate("""() => {
+                    const lbs = document.querySelectorAll(
+                        'ul[role="listbox"], .iv-menu-container ul, .scrolling.menu.visible'
+                    );
+                    for (const lb of lbs) {
+                        const r = lb.getBoundingClientRect();
+                        if (r.width > 0 && r.height > 0) return true;
+                    }
+                    return false;
+                }""")
+                if not listbox_open:
+                    result = self._click_result_row_link(desc)
+                    if result:
+                        return result
+            except Exception as e:
+                print(f"           [result-row-link guard] failed: {e}")
+
         return None
 
     # ------------------------------------------------------------------
@@ -133,24 +431,43 @@ class IvaluaBrowserSession(BrowserSession):
             try:
                 result = page.evaluate(f"""() => {{
                     const search = "{js_value}";
-                    // Cast a wide net: all li / option candidates on the page
-                    const candidates = document.querySelectorAll(
-                        'li, [role="option"], .iv-menu-container a, .scrolling.menu a'
-                    );
-                    // Collect diagnostic info: all candidate texts + visibility
-                    const candidateInfo = Array.from(candidates).map(el => {{
+
+                    // ONLY search inside visible dropdown containers — never scan the
+                    // full page DOM, which picks up navigation menus and hidden elements.
+                    const containerSelectors = [
+                        'ul[role="listbox"]',
+                        '[role="listbox"]',
+                        '.iv-menu-container ul',
+                        '.scrolling.menu.visible',
+                        '.scrolling.menu',
+                        '.iv-menu-container',
+                    ];
+                    let candidates = [];
+                    for (const sel of containerSelectors) {{
+                        const containers = document.querySelectorAll(sel);
+                        for (const c of containers) {{
+                            const rect = c.getBoundingClientRect();
+                            if (rect.width === 0 && rect.height === 0) continue;
+                            // Container is visible — collect its items
+                            const items = Array.from(c.querySelectorAll(
+                                'li, [role="option"], a, span'
+                            ));
+                            candidates.push(...items);
+                        }}
+                    }}
+                    // Deduplicate by DOM reference
+                    candidates = [...new Set(candidates)];
+
+                    const candidateInfo = candidates.map(el => {{
                         const text = (el.textContent || '').trim().substring(0, 60);
                         const rect = el.getBoundingClientRect();
                         return text + (rect.width > 0 && rect.height > 0 ? ' [visible]' : ' [hidden]');
                     }});
+
                     for (const el of candidates) {{
                         const text = (el.textContent || '').trim();
                         const textLower = text.toLowerCase();
-                        // Exact, startsWith, or substring match (case-insensitive).
-                        // includes() handles search terms that appear mid-string,
-                        // e.g. vendor_search="yard" matching '"D" YARD INTERNATIONAL'.
                         if (textLower === search || textLower.startsWith(search) || textLower.includes(search)) {{
-                            // Confirm the element is actually rendered/visible
                             const rect = el.getBoundingClientRect();
                             if (rect.width > 0 && rect.height > 0) {{
                                 el.click();
@@ -174,6 +491,33 @@ class IvaluaBrowserSession(BrowserSession):
         print(f"           [autocomplete-click] no item found for '{value}' after 8 s")
         return None
 
+    # ------------------------------------------------------------------
+    # select_option override — dismiss open dropdown after selection
+    # ------------------------------------------------------------------
+
+    def select_option(self, field_label: str, option_value: str) -> str:
+        """Select an option and close any open dropdown that Ivalua leaves open.
+
+        Ivalua's chip multi-select widget (Status, PO Type, etc.) keeps the
+        dropdown open after selecting an item — the selected option becomes a
+        chip and the remaining options stay visible for further selections.
+        If left open, the LLM sees an active listbox in the next read_page and
+        gets confused about whether the selection was applied.
+
+        This override calls the base select_option, then presses Escape to
+        dismiss the dropdown, giving the LLM a clean page state on return.
+        Escape only closes the open dropdown — it does NOT close the filter
+        panel (tested: the panel remains open after Escape on browse list pages).
+        """
+        result = super().select_option(field_label, option_value)
+        if "error" not in result.lower():
+            try:
+                self._page.keyboard.press("Escape")
+                self._page.wait_for_timeout(400)
+            except Exception:
+                pass
+        return result
+
     def _platform_fill_strategies(self, label: str, slug: str, value: str) -> str | None:
         """
         Three Ivalua-specific fill strategies tried in order before generic ones.
@@ -185,6 +529,7 @@ class IvaluaBrowserSession(BrowserSession):
         return (
             self._fill_ivalua_autocomplete(label, value)
             or self._fill_combobox_aria(label, value)
+            or self._fill_chip_multiselect(label, value)
             or self._fill_date_end(slug, value)
         )
 

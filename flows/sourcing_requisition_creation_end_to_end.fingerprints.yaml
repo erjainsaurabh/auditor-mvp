@@ -22,7 +22,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/a
-        successes: 10
+        successes: 12
         failures: 0
       - type: text
         value: Back to home
@@ -40,7 +40,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_User_ID"]
-        successes: 10
+        successes: 12
         failures: 0
       - type: xpath_structural
         value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div/div/input
@@ -54,7 +54,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="Ecom_Password"]
-        successes: 10
+        successes: 12
         failures: 0
       - type: xpath_structural
         value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[2]/div/input
@@ -67,7 +67,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="loginButton2"]
-        successes: 10
+        successes: 12
         failures: 0
       - type: xpath_structural
         value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[3]/span
@@ -135,7 +135,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/button
-        successes: 10
+        successes: 12
         failures: 0
       - type: text
         value: Requisition
@@ -171,7 +171,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/ul/li/a
-        successes: 10
+        successes: 12
         failures: 0
       - type: text
         value: Browse Requisitions
@@ -214,7 +214,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
-        successes: 10
+        successes: 12
         failures: 0
       - type: text
         value: Create Sourcing Requisition
@@ -475,7 +475,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 10
+        successes: 12
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[2]/div/table/tbody/tr/td/button
@@ -618,7 +618,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
-        successes: 9
+        successes: 11
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[3]/td/div/div/div/input
@@ -666,7 +666,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selAtypeCodeFundType_search"]
-        successes: 9
+        successes: 11
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[17]/td/div/div/div/input
@@ -713,7 +713,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskProcExeSum"]
-        successes: 9
+        successes: 11
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td[2]/div/div/div[2]/table/tbody/tr/td/div/div/textarea
@@ -751,8 +751,8 @@ steps:
   15d1wd3:
     step_id: 15d1wd3
     source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T14:30:20.346307+00:00'
-    run_id: run_33795131
+    recorded_at: '2026-05-14T21:53:21.145698+00:00'
+    run_id: run_751db281
     verdict: verified
     confidence: high
     actions:
@@ -766,7 +766,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 9
+        successes: 1
         failures: 0
       assertions: []
     - tool: read_page
@@ -775,25 +775,23 @@ steps:
       assertions: []
     - tool: take_screenshot
       args:
-        label: Requisition saved with unique REQ262409 number, showing Cancel requisition
-          and Duplicate Req. buttons
+        label: Requisition saved with REQ number assigned and action buttons visible
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: 'After saving the fully filled requisition form, the page title
-          now displays "Requisition: REQ262409 - Test Requisition MVP (Draft)" which
-          shows a unique REQ number (REQ262409) has been assigned. Both required buttons
-          are visible: "Cancel requisition" and "Duplicate Req." buttons are present
-          on the page. The form was saved successfully as confirmed by the "Success
-          Data has been saved" message shown in the status area.'
+        reasoning: 'After saving the filled requisition form, the page successfully
+          displays: (1) a page title with the format ''Requisition: REQ262423 - Test
+          Requisition MVP (Draft)'' showing a unique REQ number assigned by the system,
+          and (2) both the ''Cancel requisition'' and ''Duplicate Req.'' buttons are
+          visible on the page, confirming the requisition has been saved successfully
+          with draft status.'
       selectors: []
       assertions:
       - Cancel requisition
       - Duplicate Req.
-      - Success Data has been saved
     step_hash: c06b2d01f504
   ig6lwe9:
     step_id: ig6lwe9
@@ -1117,7 +1115,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
-        successes: 5
+        successes: 7
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[5]/td/div/div/div/input
@@ -1146,29 +1144,11 @@ steps:
   zxlva18:
     step_id: zxlva18
     source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T16:19:13.723966+00:00'
-    run_id: run_e4d04b9f
+    recorded_at: '2026-05-14T21:52:28.987274+00:00'
+    run_id: run_751db281
     verdict: verified
     confidence: high
     actions:
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Division
-        value: '{{division}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
-        successes: 5
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[6]/td/div/table/tbody/tr/td/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
     - tool: read_page
       args: {}
       selectors: []
@@ -1177,14 +1157,14 @@ steps:
       args:
         verdict: verified
         confidence: high
-        reasoning: The Division field successfully displays "EXECUTIVE DIRECTOR" as
-          the selected value. The fill_field function confirmed the selection with
-          "selected 'EXECUTIVE DIRECTOR'", and the read_page output shows the text
-          "EXECUTIVE DIRECTOR" displayed in the Division section with a delete button,
-          confirming the value is stored and visible as a non-empty selection.
+        reasoning: The Division field is now visible and displays the selected value
+          "CHIEF OF STAFF". The page clearly shows the combobox "Division *" with
+          the text "CHIEF OF STAFF" displayed below it, confirming that the field
+          has accepted the selection and is showing the chosen division value.
       selectors: []
       assertions:
-      - EXECUTIVE DIRECTOR
+      - CHIEF OF STAFF
+      - Division *
     step_hash: f8f2a6b37c43
   lc0w15d:
     step_id: lc0w15d
@@ -1205,7 +1185,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
-        successes: 4
+        successes: 6
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[3]/div/div/div/input
@@ -1219,7 +1199,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
-        successes: 4
+        successes: 6
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[6]/div/div/div/input
@@ -1334,7 +1314,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
-        successes: 4
+        successes: 6
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[10]/td/div/div/div/input

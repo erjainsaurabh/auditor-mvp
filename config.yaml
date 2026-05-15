@@ -23,7 +23,7 @@ llm:
   # fast_model: "ollama/llama3"
 
 agent:
-  max_actions_per_claim: 15
+  max_actions_per_claim: 20
   max_retries_per_claim: 3
 
 evidence:

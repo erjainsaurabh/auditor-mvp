@@ -68,7 +68,13 @@ def run_audit(
     order = condition_execution_order(condition_graph)
     tc_map = {tc.id: tc for tc in flow_file.all_test_conditions}
 
-    llm = LLMClient(config["llm"])
+    _platform = config["app"].get("platform", "generic").lower()
+    if _platform == "ivalua":
+        from auditor.platforms.ivalua import IvaluaBrowserSession
+        platform_guidance = IvaluaBrowserSession.PLATFORM_GUIDANCE
+    else:
+        platform_guidance = ""
+    llm = LLMClient(config["llm"], platform_guidance=platform_guidance)
 
     per_yaml_stores: list[tuple[FingerprintStore, set[str]]] = []
     for yp in yaml_paths:

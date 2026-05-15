@@ -500,10 +500,12 @@ class BrowserSession:
         # JavaScript click — works on CSS-hidden elements (e.g. hover dropdowns).
         # Returns {found, id, xpath} so we can extract selectors for fingerprinting.
         # Computes XPath as fallback when element has no id attribute.
-        # Visibility guard: only match elements with offsetParent !== null so that
-        # hidden/detached buttons (e.g. Ivalua's secondary btnApprove) are skipped
-        # in favour of the visible action-bar button. Exact text match is tried
-        # first; contains-match is the fallback so partial labels still work.
+        # Visibility guard: use getBoundingClientRect (not offsetParent) — offsetParent
+        # is null for position:fixed/absolute elements in headless Chrome even when
+        # the element is visually present (e.g. Ivalua action-bar buttons, table links
+        # inside overflow:hidden containers). getBoundingClientRect correctly reports
+        # non-zero dimensions for all visible elements regardless of positioning.
+        # Exact text match is tried first; contains-match is the fallback.
         try:
             js_desc = desc.replace("\\", "\\\\").replace('"', '\\"')
             js_result = page.evaluate(f"""() => {{
@@ -522,12 +524,17 @@ class BrowserSession:
                     }}
                     return '/' + parts.join('/');
                 }}
+                function isVisible(el) {{
+                    const r = el.getBoundingClientRect();
+                    return r.width > 0 && r.height > 0;
+                }}
                 const all = Array.from(document.querySelectorAll('a, button, [role="menuitem"]'))
-                    .filter(e => e.offsetParent !== null);   // visible elements only
+                    .filter(isVisible);
                 // Exact match first; fall back to contains so partial labels still work
                 const el = all.find(e => e.textContent.trim() === "{js_desc}")
                          || all.find(e => e.textContent.trim().includes("{js_desc}"));
                 if (el) {{
+                    el.scrollIntoView({{block: 'nearest', inline: 'nearest'}});
                     el.click();
                     return {{found: true, id: el.id || '', xpath: getXPath(el)}};
                 }}

@@ -158,7 +158,7 @@ def get_status(run_id: str) -> StatusResponse:
 
 
 @app.get("/run/{run_id}/report")
-def get_report(run_id: str) -> dict:
+def get_report(run_id: str) -> dict:  # noqa: F811
     """Return the full report once the run is done.
 
     Returns 404 if the run_id is unknown, 202 if still running/queued,
@@ -172,3 +172,8 @@ def get_report(run_id: str) -> dict:
     if job.status == "failed":
         raise HTTPException(status_code=500, detail=job.error or "run failed")
     return job.report
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)

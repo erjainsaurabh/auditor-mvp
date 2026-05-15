@@ -539,12 +539,18 @@ def run_test_condition(
             )
             data_context = f"Test data (use these exact values):\n{data_lines}\n"
 
+        hints_context = ""
+        if step.hints:
+            hints_lines = "\n".join(f"  {i+1}. {h}" for i, h in enumerate(step.hints))
+            hints_context = f"IMPORTANT — follow these steps exactly:\n{hints_lines}\n"
+
         messages.append({
             "role": "user",
             "content": (
                 f"Claim: {step.description}\n"
                 f"Expected outcome: {step.expected}\n"
                 + data_context
+                + hints_context
                 + nav_context
                 + "Verify this claim and call verify_claim when done."
             ),

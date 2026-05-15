@@ -1,0 +1,208 @@
+steps:
+  7qrk5ek:
+    step_id: 7qrk5ek
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T14:25:50.807981+00:00'
+    run_id: run_f0899873
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Email Address
+        value: '{{app_username}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="Ecom_User_ID"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Password
+        value: '{{app_password}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="Ecom_Password"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[2]/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: Sign in
+      selectors:
+      - type: xpath
+        value: //*[@id="loginButton2"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[3]/span
+        successes: 1
+        failures: 0
+      - type: text
+        value: Sign in
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Home page loaded with main navigation menu showing Requisition, Contracts,
+          Vendors and other menu items
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The login was successful using the provided credentials (DOCFINANCEMANAGER@doitt.nyc.gov).
+          The home page has loaded with a clearly visible main navigation menu containing
+          all the expected items including: Vendors, Requisition, Contracts, Catalog,
+          Sourcing, Ordering, Receiving, Financials, Reporting, Rules, and Support.
+          The page title is "Home Page" and the navigation is prominently displayed
+          at the top with proper menu structure.'
+      selectors: []
+      assertions:
+      - Home Page
+    step_hash: 5b2023181963
+  ae3433ee-ce51-471d-9f4e-2fc54b9b314e:
+    step_id: ae3433ee-ce51-471d-9f4e-2fc54b9b314e
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T14:27:10.170434+00:00'
+    run_id: run_f0899873
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /en/ord/order_browse/contract_budget
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Open advanced search panel
+      selectors:
+      - type: xpath
+        value: //*[@id="leftPanel_btnPanelOpen"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/div/div/button[3]
+        successes: 1
+        failures: 0
+      - type: text
+        value: Open advanced search panel
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: select_option
+      args:
+        field_label: Status
+        option_value: Active
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_ddlStatus_search"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/div/div[2]/div/div[2]/div/div/div/div/div/div/div/div[2]/div/div[2]/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: Search
+      selectors:
+      - type: xpath
+        value: //*[@name="body:x:prxAdvFilterBar:x:cmdSearchBtn"]
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The claim has been successfully verified. After opening the advanced
+          search panel, setting the Status filter to "Active" using select_option,
+          and clicking the Search button, the results table now displays multiple
+          PO records with Status = "Active". The filter chip "Status: Active" is visible
+          at the top of the results, confirming the filter was applied. The table
+          shows multiple records (PO074788, PO074770, PO074762, PO074761, PO074759,
+          and many others) all with "Active" status in the Status column. The expected
+          outcome requirement of "one or more PO records with Status Active" has been
+          clearly met.'
+      selectors: []
+      assertions:
+      - Active
+    step_hash: fd84be005811
+  b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891:
+    step_id: b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T14:27:20.210468+00:00'
+    run_id: run_f0899873
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: PO074788
+      selectors:
+      - type: text
+        value: PO074788
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The PO record with ID PO074788 was successfully found in the results
+          list and clicked. The overview page for this PO has loaded successfully,
+          as evidenced by: (1) The page heading clearly displays "PO: PO074788 - 12524B0102-Test
+          Shanmuk Data CSB - dont Use - "D" YARD INTERNATIONAL, INC (Active)"; (2)
+          The URL is now at the order management page for PO 74788; (3) The Overview
+          tab is selected in the left navigation panel; (4) The Order Header section
+          displays all the relevant PO details including Status (Active), Budgeted
+          Amount, Award Amount, Agency, Division, Vendor information, and contract/budget
+          periods. The expected outcome of opening the overview page for the PO matching
+          the given ID has been fully achieved.'
+      selectors: []
+      assertions:
+      - ' YARD INTERNATIONAL, INC (Active)'
+    step_hash: e19b707b08bd

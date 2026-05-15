@@ -66,6 +66,7 @@ class Step(BaseModel):
                             # lower runs first. 0 = "no preference" (file order preserved).
                             # Not part of the fingerprint hash — ordering ≠ intent.
     data: dict[str, str] = Field(default_factory=dict)   # test data injected into LLM context
+    hints: list[str] = Field(default_factory=list)       # step-by-step action guidance for the LLM
     # ── Runtime state (set by loader/agent, not authored in YAML) ─────────────
     source_file: str = ""   # YAML stem this step belongs to — set by load_flows()
     status: StepStatus = StepStatus.not_started
