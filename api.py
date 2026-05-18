@@ -11,6 +11,7 @@ Usage:
 """
 from __future__ import annotations
 
+import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -23,6 +24,11 @@ load_dotenv(Path(__file__).parent / ".env", override=True)
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+# ── logging bootstrap (must happen before any auditor import) ─────────────────
+from auditor.logger import get_logger, setup_logging
+setup_logging(log_file=Path(__file__).parent / "auditor.log")
+log = get_logger("api")
 
 from run import run_audit
 
@@ -77,12 +83,14 @@ class StatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _execute(job: _Job, yaml_paths: list[Path], data_path: Path | None) -> None:
+    log.info("run %s — starting (yamls=%s)", job.run_id, [p.name for p in yaml_paths])
     with _jobs_lock:
         job.status = "running"
     try:
         # Each run writes its report under evidence/<run_id>/report.json so
         # concurrent runs (if max_workers>1) never overwrite each other.
         report_path = Path("evidence") / job.run_id / "report.json"
+        log.debug("run %s — report_path=%s", job.run_id, report_path)
         report = run_audit(
             yaml_paths=yaml_paths,
             data_path=data_path,
@@ -100,14 +108,25 @@ def _execute(job: _Job, yaml_paths: list[Path], data_path: Path | None) -> None:
             result = "failed"
         else:
             result = "partial"
+        log.info(
+            "run %s — done: result=%s total=%d verified=%d failed=%d blocked=%d",
+            job.run_id, result, total, verified, failed, blocked,
+        )
         with _jobs_lock:
             job.report = report
             job.summary = summary
             job.result = result
             job.status = "done"
     except Exception as exc:
+        tb = traceback.format_exc()
+        # Log the FULL traceback so it appears in auditor.log and stderr
+        log.error(
+            "run %s — FAILED with %s: %s\n%s",
+            job.run_id, type(exc).__name__, exc, tb,
+        )
         with _jobs_lock:
-            job.error = str(exc)
+            # Store both the short message and full traceback for the API response
+            job.error = f"{type(exc).__name__}: {exc}\n\nTraceback:\n{tb}"
             job.status = "failed"
 
 
@@ -122,18 +141,21 @@ def start_run(req: RunRequest) -> RunResponse:
     yaml_paths = [base / y for y in req.yamls]
     for p in yaml_paths:
         if not p.exists():
+            log.warning("POST /run — YAML not found: %s", p)
             raise HTTPException(status_code=400, detail=f"YAML not found: {p.name}")
 
     data_path: Path | None = None
     if req.data:
         data_path = base / req.data
         if not data_path.exists():
+            log.warning("POST /run — data file not found: %s", req.data)
             raise HTTPException(status_code=400, detail=f"Data file not found: {req.data}")
     elif (base / "test_data.yaml").exists():
         data_path = base / "test_data.yaml"
 
     run_id = f"run_{uuid.uuid4().hex[:8]}"
     job = _Job(run_id=run_id)
+    log.info("POST /run — queued %s (yamls=%s, data=%s)", run_id, req.yamls, req.data)
 
     with _jobs_lock:
         _jobs[run_id] = job
@@ -147,7 +169,9 @@ def get_status(run_id: str) -> StatusResponse:
     """Return the current status of a run."""
     job = _jobs.get(run_id)
     if job is None:
+        log.debug("GET /status %s — not found", run_id)
         raise HTTPException(status_code=404, detail="run_id not found")
+    log.debug("GET /status %s — status=%s result=%s", run_id, job.status, job.result)
     return StatusResponse(
         run_id=run_id,
         status=job.status,
@@ -166,11 +190,15 @@ def get_report(run_id: str) -> dict:  # noqa: F811
     """
     job = _jobs.get(run_id)
     if job is None:
+        log.debug("GET /report %s — not found", run_id)
         raise HTTPException(status_code=404, detail="run_id not found")
     if job.status in ("queued", "running"):
+        log.debug("GET /report %s — still %s", run_id, job.status)
         raise HTTPException(status_code=202, detail=f"Run is {job.status}")
     if job.status == "failed":
+        log.error("GET /report %s — run failed, returning 500. error=%s", run_id, job.error)
         raise HTTPException(status_code=500, detail=job.error or "run failed")
+    log.info("GET /report %s — returning report (%d flows)", run_id, len((job.report or {}).get("flows", [])))
     return job.report
 
 

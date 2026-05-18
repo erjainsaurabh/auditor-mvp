@@ -12,6 +12,12 @@ load_dotenv(Path(__file__).parent / ".env", override=True)
 import yaml
 from rich.console import Console
 
+from auditor.logger import get_logger, setup_logging
+# setup_logging() is a no-op if already called by api.py; safe to call here
+# so that `python run.py` still produces log output.
+setup_logging(log_file=Path(__file__).parent / "auditor.log")
+log = get_logger("run")
+
 from auditor.agent import run_test_condition
 from auditor.fingerprint import FingerprintRouter, FingerprintStore
 from auditor.graph import build_condition_graph, cascade_condition_failure, condition_execution_order, mark_conditions_blocked
@@ -49,12 +55,22 @@ def run_audit(
     Writes the report to *report_path* and returns the same data so callers
     (CLI, API) can use it without re-reading the file.
     """
+    log.info("run_audit starting — yamls=%s data=%s", yaml_paths, data_path)
     config = yaml.safe_load(config_path.read_text())
+    log.debug("config loaded from %s", config_path)
     if os.getenv("AUDITOR_HEADLESS", "").lower() in ("1", "true", "yes"):
         config["app"]["headless"] = True
+        log.info("headless mode forced by AUDITOR_HEADLESS env var")
     flow_file = load_flows(*yaml_paths, test_data_path=data_path)
     run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
     output_dir = Path(config["evidence"]["output_dir"])
+    log.info(
+        "run_id=%s  flows=%d  test_conditions=%d  steps=%d",
+        run_id,
+        len(flow_file.flows),
+        len(flow_file.all_test_conditions),
+        len(flow_file.all_steps),
+    )
 
     total_steps = len(flow_file.all_steps)
     total_tcs = len(flow_file.all_test_conditions)
@@ -96,9 +112,11 @@ def run_audit(
             tc = tc_map[tc_id]
 
             if tc.status == ConditionStatus.blocked:
+                log.info("tc %s — blocked, skipping", tc_id)
                 console.print(f"  [yellow]⊘[/yellow] {tc_id} — blocked (all steps skipped)")
                 continue
 
+            log.info("tc %s — starting", tc_id)
             status, evidence_records, session_data = run_test_condition(
                 tc=tc,
                 session=session,
@@ -112,6 +130,7 @@ def run_audit(
 
             all_evidence.extend(evidence_records)
 
+            log.info("tc %s — completed: status=%s", tc_id, status.value)
             icon = {"verified": "[green]✓[/green]", "failed": "[red]✗[/red]"}.get(status.value, "[yellow]⊘[/yellow]")
             console.print(f"  {icon} {tc_id} — {status.value}\n")
 
@@ -122,9 +141,16 @@ def run_audit(
                     console.print(f"  [dim]cascading block to test conditions: {', '.join(blocked)}[/dim]\n")
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    write_report(flow_file, all_evidence, run_id, report_path)
+    log.info("writing report to %s", report_path)
+    try:
+        write_report(flow_file, all_evidence, run_id, report_path)
+    except Exception:
+        import traceback
+        log.error("write_report failed:\n%s", traceback.format_exc())
+        raise
     print_summary(flow_file.all_steps, all_evidence, run_id)
     console.print(f"\n[dim]Report saved to {report_path}[/dim]")
+    log.info("run_audit complete — report at %s", report_path)
 
     return json.loads(report_path.read_text())
 

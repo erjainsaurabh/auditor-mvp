@@ -1,0 +1,84 @@
+# Ivalua element registry
+# Each entry has a description and an ordered list of CSS selector strategies.
+# Strategies encode WHAT an element is (semantic attributes, Ivalua data roles,
+# aria labels, stable class names) — NOT where it sits in the DOM tree.
+# Most specific strategy first; broadest fallback last.
+
+panel_search_button:
+  description: "Search button that submits the left filter panel on browse list pages"
+  selectors:
+    - '[name*="cmdSearchBtn"][name*="FilterBar"]'
+    - '[name*="cmdSearchBtn"]'
+    - '.iv-filter-panel-buttons button[type="submit"]'
+    - '.iv-filter-panel-buttons [data-iv-role="buttonControl"]'
+    - '.iv-filter-panel-buttons button'
+
+panel_open_button:
+  description: "Button that opens/reveals the advanced filter panel"
+  selectors:
+    - '[id*="btnPanelOpen"]'
+    - 'button[aria-label*="advanced search panel"]'
+    - 'button[title*="Open advanced search"]'
+    - '.iv-filter-panel-open-btn'
+
+autocomplete_dropdown:
+  description: "Visible dropdown container for autocomplete and chip-multiselect fields"
+  selectors:
+    - 'ul[role="listbox"]'
+    - '[role="listbox"]'
+    - '.iv-menu-container ul'
+    - '.scrolling.menu.visible'
+    - '.scrolling.menu'
+    - '.iv-menu-container'
+
+field_label:
+  description: "Label element for an Ivalua form field"
+  selectors:
+    - '[data-iv-role="label"]'
+    - 'label'
+    - 'th'
+    - '.field-label'
+    - 'legend'
+
+field_control_wrapper:
+  description: "Wrapper element that groups a field label with its input control"
+  selectors:
+    - '[data-iv-role="controlWrapper"]'
+    - '.iv-control-wrapper'
+
+autocomplete_input:
+  description: "Input element inside an Ivalua autocomplete or search field"
+  selectors:
+    - 'input[role="combobox"]'
+    - 'input.search'
+    - 'input[aria-autocomplete]'
+    - 'input[type="text"]'
+
+chip_widget:
+  description: "Chip/token element in an Ivalua multi-select field"
+  selectors:
+    - '.iv-chip'
+    - '[data-iv-role="chip"]'
+    - '.label.transition'
+    - '.ui.label'
+
+chip_delete_button:
+  description: "Delete/remove button inside a chip/token widget"
+  selectors:
+    - 'button[data-iv-role="delete"]'
+    - '[data-iv-role="delete"]'
+    - '.delete'
+    - 'i.delete.icon'
+    - 'button'
+
+results_table_link:
+  description: "Anchor link inside a tbody data row of a browse list results table"
+  selectors:
+    - 'tbody td a'
+    - 'tbody tr td a'
+
+results_table_cell:
+  description: "Data cell inside a tbody row of a browse list results table"
+  selectors:
+    - 'tbody td'
+    - 'tbody tr td'

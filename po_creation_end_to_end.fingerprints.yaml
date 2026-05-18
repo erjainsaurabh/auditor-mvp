@@ -2,8 +2,8 @@ steps:
   7qrk5ek:
     step_id: 7qrk5ek
     source_file: po_creation_end_to_end
-    recorded_at: '2026-05-15T14:25:50.807981+00:00'
-    run_id: run_f0899873
+    recorded_at: '2026-05-15T21:26:46.877202+00:00'
+    run_id: run_b0e7acef
     verdict: verified
     confidence: high
     actions:
@@ -67,29 +67,32 @@ steps:
       assertions: []
     - tool: take_screenshot
       args:
-        label: Home page loaded with main navigation menu showing Requisition, Contracts,
-          Vendors and other menu items
+        label: Home page loaded with main navigation menu showing Vendors, Catalog,
+          Requisition, Sourcing, Contracts, Ordering, Receiving, Financials, Reporting,
+          Rules, Support
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: 'The login was successful using the provided credentials (DOCFINANCEMANAGER@doitt.nyc.gov).
-          The home page has loaded with a clearly visible main navigation menu containing
-          all the expected items including: Vendors, Requisition, Contracts, Catalog,
-          Sourcing, Ordering, Receiving, Financials, Reporting, Rules, and Support.
-          The page title is "Home Page" and the navigation is prominently displayed
-          at the top with proper menu structure.'
+        reasoning: 'Login was successful with the provided credentials (DOCFINANCEMANAGER@doitt.nyc.gov).
+          The home page has loaded and displays a main navigation menu with the following
+          items: Vendors, Catalog, Requisition, Sourcing, Contracts, Ordering, Receiving,
+          Financials, Reporting, Rules, and Support. These navigation items match
+          the expected outcome of having a main navigation menu with items such as
+          Requisition, Contracts, Vendors, or similar. The page title is "Home Page:
+          PASSPort" and the user is logged in (shown as "DOC F." in the profile menu).'
       selectors: []
       assertions:
-      - Home Page
+      - 'Home Page: PASSPort'
+      - DOC F.
     step_hash: 5b2023181963
   ae3433ee-ce51-471d-9f4e-2fc54b9b314e:
     step_id: ae3433ee-ce51-471d-9f4e-2fc54b9b314e
     source_file: po_creation_end_to_end
-    recorded_at: '2026-05-15T14:27:10.170434+00:00'
-    run_id: run_f0899873
+    recorded_at: '2026-05-15T21:28:07.170147+00:00'
+    run_id: run_b0e7acef
     verdict: verified
     confidence: high
     actions:
@@ -141,8 +144,8 @@ steps:
       args:
         element_description: Search
       selectors:
-      - type: xpath
-        value: //*[@name="body:x:prxAdvFilterBar:x:cmdSearchBtn"]
+      - type: css
+        value: '[name*="cmdSearchBtn"][name*="FilterBar"]'
         successes: 1
         failures: 0
       assertions: []
@@ -154,15 +157,13 @@ steps:
       args:
         verdict: verified
         confidence: high
-        reasoning: 'The claim has been successfully verified. After opening the advanced
-          search panel, setting the Status filter to "Active" using select_option,
-          and clicking the Search button, the results table now displays multiple
-          PO records with Status = "Active". The filter chip "Status: Active" is visible
-          at the top of the results, confirming the filter was applied. The table
-          shows multiple records (PO074788, PO074770, PO074762, PO074761, PO074759,
-          and many others) all with "Active" status in the Status column. The expected
-          outcome requirement of "one or more PO records with Status Active" has been
-          clearly met.'
+        reasoning: 'The advanced search panel was successfully opened on the Browse
+          Contract Budgets page. The Status filter was set to ''Active'' using select_option,
+          and the Search button was clicked. The results table now displays multiple
+          PO records, all with Status column showing ''Active''. The filter chip "Status:
+          Active ×" is visible in the Filters section above the results table, confirming
+          the filter is active. The expected outcome - results list showing one or
+          more PO records with Status Active - has been achieved.'
       selectors: []
       assertions:
       - Active
@@ -170,17 +171,17 @@ steps:
   b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891:
     step_id: b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891
     source_file: po_creation_end_to_end
-    recorded_at: '2026-05-15T14:27:20.210468+00:00'
-    run_id: run_f0899873
+    recorded_at: '2026-05-15T21:28:17.407212+00:00'
+    run_id: run_b0e7acef
     verdict: verified
     confidence: high
     actions:
     - tool: click
       args:
-        element_description: PO074788
+        element_description: PO074770
       selectors:
       - type: text
-        value: PO074788
+        value: PO074770
         successes: 1
         failures: 0
       assertions: []
@@ -192,17 +193,215 @@ steps:
       args:
         verdict: verified
         confidence: high
-        reasoning: 'The PO record with ID PO074788 was successfully found in the results
-          list and clicked. The overview page for this PO has loaded successfully,
-          as evidenced by: (1) The page heading clearly displays "PO: PO074788 - 12524B0102-Test
-          Shanmuk Data CSB - dont Use - "D" YARD INTERNATIONAL, INC (Active)"; (2)
-          The URL is now at the order management page for PO 74788; (3) The Overview
-          tab is selected in the left navigation panel; (4) The Order Header section
-          displays all the relevant PO details including Status (Active), Budgeted
-          Amount, Award Amount, Agency, Division, Vendor information, and contract/budget
-          periods. The expected outcome of opening the overview page for the PO matching
-          the given ID has been fully achieved.'
+        reasoning: 'The PO record with ID PO074770 was successfully clicked from the
+          results list, and the overview page has loaded. The page title clearly shows
+          "PO: PO074770" and the URL has changed to /en/ord/order_manage/74770, confirming
+          navigation to the PO''s detail page. The Overview tab is selected and displays
+          comprehensive PO information including vendor, agency, budget details, and
+          status information. The expected outcome - the overview page for the PO
+          matching the given ID is open - has been successfully achieved.'
+      selectors: []
+      assertions: []
+    step_hash: e19b707b08bd
+  7ba6d9b6-c66b-41f4-8edc-59c228e1dfeb:
+    step_id: 7ba6d9b6-c66b-41f4-8edc-59c228e1dfeb
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T21:29:22.962288+00:00'
+    run_id: run_b0e7acef
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The 'Create PO Change Request' button is clearly displayed on the
+          Overview page for PO074770. It appears in the main content area as a link
+          with the URL /buyer/nyc/rctevol2/s3sr2/page.aspx/en/ord/order_crpop_manage/74770.
+          The button is visible and accessible to the Budget Preparer, fulfilling
+          the expected outcome that the 'Create PO Change Request' button should be
+          displayed.
       selectors: []
       assertions:
-      - ' YARD INTERNATIONAL, INC (Active)'
-    step_hash: e19b707b08bd
+      - Create PO Change Request
+    step_hash: bf123b9df4ee
+  1c535cf7-5ce0-449b-9a1c-f1d228cf459c:
+    step_id: 1c535cf7-5ce0-449b-9a1c-f1d228cf459c
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T21:29:35.654762+00:00'
+    run_id: run_b0e7acef
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Create PO Change Request
+      selectors:
+      - type: xpath
+        value: //*[@id="proxyActionBar_x_button_order_200728082454"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[2]/a
+        successes: 1
+        failures: 0
+      - type: text
+        value: Create PO Change Request
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The ''Select Purchase Change Request Type'' popup has successfully
+          opened after clicking the ''Create PO Change Request'' button. The popup
+          displays all the expected fields: (1) FY Budget - shown as a read-only/disabled
+          combobox displaying "2026 - City of New York (Legal)", (2) Select the PO
+          Change Request Type - a single option select dropdown field marked with
+          an asterisk as mandatory, (3) Submit button, and (4) Cancel button. The
+          page title confirms "Select Purchase Change Request Type: PASSPort" and
+          the URL has changed to /en/ord/order_crpop_manage/74770, confirming the
+          popup/page has loaded correctly with all specified elements.'
+      selectors: []
+      assertions:
+      - 2026 - City of New York (Legal)
+      - 'Select Purchase Change Request Type: PASSPort'
+      - Select Purchase Change Request Type
+    step_hash: 235e5e6a2908
+  73494eea-d78c-4dc7-95ad-fe479e64847a:
+    step_id: 73494eea-d78c-4dc7-95ad-fe479e64847a
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T21:29:44.233967+00:00'
+    run_id: run_b0e7acef
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: select_option
+      args:
+        field_label: Select the PO Change Request Type
+        option_value: Budget and Encumbrance Change
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_selPocrCodeCr_search"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: '''Budget and Encumbrance Change'' option has been successfully
+          selected in the ''Select the PO Change Request Type'' field. The page clearly
+          displays "Both Budget and Encumbrance Change" in the combobox field, confirming
+          the selection. Additionally, informational messages appear stating "An encumbrance-related
+          POCR is in progress" and "A budget-related POCR is in progress", which indicates
+          the system has recognized the selection. The expected outcome - that ''Budget
+          and Encumbrance Change'' option should be displayed and selected - has been
+          successfully verified.'
+      selectors: []
+      assertions:
+      - Both Budget and Encumbrance Change
+      - An encumbrance-related POCR is in progress
+      - A budget-related POCR is in progress
+      - Budget and Encumbrance Change
+      - Select the PO Change Request Type
+    step_hash: d4ff9aec3ae1
+  0f38904a-214f-4ce2-817e-b7724a5714fc:
+    step_id: 0f38904a-214f-4ce2-817e-b7724a5714fc
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T21:30:15.354196+00:00'
+    run_id: run_b0e7acef
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The Submit button was successfully clicked in the ''Select the
+          PO Change Request Type'' popup. The page has navigated to the newly created
+          Budget and Encumbrance Change POCR (POCR074862). Multiple indicators confirm
+          successful launch: (1) the page title shows "PO: POCR074862" with the expected
+          PO details, (2) the URL has changed to /en/ord/order_manage/74862, (3) the
+          Status field displays "Initialized" showing the POCR is newly created, (4)
+          the "Link to PO" field shows "PO074770" confirming this change request is
+          linked to the original PO, (5) the PO Revision Doc ID shows "POCR-125-20248800592-00014"
+          confirming this is a POCR, and (6) additional tabs for Budget, Change Request,
+          Encumbrance, etc. are available. The expected outcome - Budget and Encumbrance
+          Change POCR BEPO1 is launched - has been successfully verified (the POCR
+          ID is POCR074862).'
+      selectors: []
+      assertions:
+      - Initialized
+      - Link to PO
+      - Select the PO Change Request Type
+    step_hash: 861dd518b5c3
+  5ead2d11-68af-415d-88f9-90781d9b622a:
+    step_id: 5ead2d11-68af-415d-88f9-90781d9b622a
+    source_file: po_creation_end_to_end
+    recorded_at: '2026-05-15T21:30:27.345108+00:00'
+    run_id: run_b0e7acef
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Save
+      selectors:
+      - type: xpath
+        value: //*[@id="proxyActionBar_x__cmdEnd"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[2]/div/table/tbody/tr/td/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Save and Close
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The Save button was clicked without filling any required fields.
+          A blocking error alert has appeared displaying "Reason for Change Request
+          must have a value", indicating that this is a mandatory field. An additional
+          informational message states "Fields marked by an asterisk * are mandatory"
+          and "Expected date format: M/d/yyyy". The page has remained on the same
+          URL (/en/ord/order_manage/74862) with the POCR still in Initialized status,
+          confirming the form was not submitted. The validation error messages have
+          successfully prevented form submission, meeting the expected outcome that
+          validation errors appear for all required fields and the form is not submitted.'
+      selectors: []
+      assertions:
+      - Reason for Change Request must have a value
+      - Fields marked by an asterisk * are mandatory
+      - 'Expected date format: M/d/yyyy'
+    step_hash: 4d85affeb384

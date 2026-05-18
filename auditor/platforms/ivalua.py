@@ -4,12 +4,22 @@ Ivalua platform adapter.
 Extends BrowserSession with Ivalua-specific DOM interaction strategies.
 All knowledge of Ivalua's widget patterns (data-iv-role, iv-menu-container,
 chip/token deletion, "to:" date heading) lives here — not in the core tools.
+
+Element selector strategies are declared in ivalua_elements.yaml (the element
+registry). Python methods load strategies from the registry at runtime via
+_get_selectors() and resolve the best live match via _discover_element() —
+so selector updates never require touching Python code.
 """
 from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import ClassVar
 
 from auditor.tools import BrowserSession
 
 
+@dataclass
 class IvaluaBrowserSession(BrowserSession):
 
     # ------------------------------------------------------------------
@@ -17,26 +27,115 @@ class IvaluaBrowserSession(BrowserSession):
     # These are planning-layer rules the LLM needs before it acts.
     # DOM-level strategies (how to execute) live in the methods below.
     # ------------------------------------------------------------------
-    PLATFORM_GUIDANCE = """
-IVALUA BROWSE LIST PAGE RULES:
-- Browse list pages (Browse Contract Budgets, Browse Requisitions, etc.) have TWO Search buttons:
-  1. LEFT FILTER PANEL Search — submits the filter panel (Status, Agency, Doc ID, etc.).
-     To trigger this, call: click('filter panel search') or click('Search')
-     This routes directly to the panel's Search button (name=body:x:prxAdvFilterBar:x:cmdSearchBtn).
-  2. MAIN PANE Search — keyword/text search in the main content header area.
-     To trigger this, call: click('main search') or click('keyword search')
-     This uses normal text matching against the header Search button.
-  IMPORTANT: always use the exact descriptions above — never call click('Search') alone,
-  as it is ambiguous when both buttons are visible.
-- To open a specific record from results, click its ID link (e.g. "PO074788") — blue hyperlinks
-  in the first column of the results table.
-- Filter chips appear above the results table showing active filters (e.g. Status: Active ×,
-  PO Type: CT1 × POCR ×). These persist across searches — check the chips row before setting
-  filters to avoid duplicating selections already active.
-- Multi-select chip fields (e.g. PO Type, Status): to ADD a value use fill_field with the field
-  label and the value; to REMOVE a specific chip click the × button next to that chip's text.
-"""
     """BrowserSession configured for Ivalua SaaS procurement platform."""
+
+    # Instance-level selector cache: maps element_key → winning CSS selector for this session.
+    _selector_cache: dict = field(default_factory=dict, init=False, repr=False)
+
+    # ------------------------------------------------------------------
+    # Platform guidance — loaded from ivalua_guidance.md at import time
+    # ------------------------------------------------------------------
+
+    _guidance: ClassVar[str | None] = None
+    PLATFORM_GUIDANCE: ClassVar[str] = ""  # populated by _init_guidance() below
+
+    @classmethod
+    def _init_guidance(cls) -> None:
+        if cls._guidance is None:
+            from pathlib import Path
+            cls._guidance = (Path(__file__).parent / "ivalua_guidance.md").read_text()
+            cls.PLATFORM_GUIDANCE = cls._guidance
+
+    # ------------------------------------------------------------------
+    # Element registry — load once per class, cache forever
+    # ------------------------------------------------------------------
+
+    _registry: ClassVar[dict | None] = None   # class-level cache, loaded once
+
+    @classmethod
+    def _load_registry(cls) -> dict:
+        if cls._registry is None:
+            from pathlib import Path
+            import yaml
+            p = Path(__file__).parent / "ivalua_elements.yaml"
+            cls._registry = yaml.safe_load(p.read_text())
+        return cls._registry
+
+    def _get_selectors(self, element_key: str) -> list[str]:
+        """Return the ordered CSS selector strategies for a named element."""
+        entry = self._load_registry().get(element_key, {})
+        return entry.get("selectors", [])
+
+    def _discover_element(self, element_key: str) -> str | None:
+        """
+        Find the CSS selector for a named element on the current page.
+
+        Tries each strategy from the registry in order. Caches the winning
+        selector for the rest of the session. On cache miss (selector no longer
+        matches), re-runs discovery automatically.
+
+        Returns the CSS selector string, or None if no strategy matched.
+        """
+        # Check session cache first
+        cached = self._selector_cache.get(element_key)
+        if cached:
+            try:
+                if self._page.evaluate(f"!!document.querySelector({json.dumps(cached)})"):
+                    return cached
+                # Cached selector no longer works — re-discover
+                print(f"           [discover] stale cache for {element_key!r}, re-discovering")
+                del self._selector_cache[element_key]
+            except Exception:
+                self._selector_cache.pop(element_key, None)  # clear silently
+
+        # Try each strategy from registry
+        for selector in self._get_selectors(element_key):
+            try:
+                found = self._page.evaluate(
+                    f"!!document.querySelector({json.dumps(selector)})"
+                )
+                if found:
+                    self._selector_cache[element_key] = selector
+                    print(f"           [discover] {element_key!r} → {selector!r}")
+                    return selector
+            except Exception:
+                continue
+
+        # Scan visible Ivalua-semantic elements on the page as hints for the developer
+        try:
+            candidates = self._page.evaluate("""() => {
+                const els = Array.from(document.querySelectorAll(
+                    '[data-iv-role], [data-iv-control-type-name], button[type="submit"], ' +
+                    'button[name], input[name], [class*="iv-filter"]'
+                )).filter(el => {
+                    const r = el.getBoundingClientRect();
+                    return r.width > 0 && r.height > 0;
+                }).slice(0, 20);
+                return els.map(el => ({
+                    tag:   el.tagName,
+                    id:    el.id || '',
+                    name:  el.getAttribute('name') || '',
+                    role:  el.getAttribute('data-iv-role') || '',
+                    type:  el.getAttribute('type') || '',
+                    text:  el.textContent.trim().slice(0, 50),
+                    ivCls: Array.from(el.classList).filter(c => c.startsWith('iv-')).join(' ')
+                }));
+            }""")
+            if candidates:
+                print(f"           [discover] visible Ivalua elements on page (add to ivalua_elements.yaml):")
+                for c in candidates:
+                    parts = [f"<{c['tag']}>"]
+                    if c['id']:    parts.append(f"id={c['id']!r}")
+                    if c['name']:  parts.append(f"name={c['name']!r}")
+                    if c['role']:  parts.append(f"data-iv-role={c['role']!r}")
+                    if c['type']:  parts.append(f"type={c['type']!r}")
+                    if c['ivCls']: parts.append(f"class={c['ivCls']!r}")
+                    if c['text']:  parts.append(f"text={c['text']!r}")
+                    print(f"             {' '.join(parts)}")
+        except Exception:
+            pass
+        print(f"           [discover] {element_key!r}: no strategy matched on this page")
+        return None
 
     # ------------------------------------------------------------------
     # Browse list page — Search button + chip multiselect
@@ -46,58 +145,34 @@ IVALUA BROWSE LIST PAGE RULES:
         """Click the left filter panel Search button via JavaScript.
 
         Browse list pages have two Search buttons:
-          - Left panel (filter): name="body:x:prxAdvFilterBar:x:cmdSearchBtn"
+          - Left panel (filter): name contains "cmdSearchBtn" and "FilterBar"
             — submits the active filter panel selections (Status, Agency, etc.)
           - Main content header: a separate Search input/button for keyword search
 
         Text-based click strategies cannot reliably distinguish them, and
         Playwright actionability checks fail when a chip-multiselect dropdown
-        is open on top of the button. This method uses a JS querySelector with
-        multiple fallback selectors to click the panel button unconditionally.
+        is open on top of the button. This method uses _discover_element() to
+        resolve the best live CSS selector from the registry, then fires a JS
+        click unconditionally to bypass Playwright actionability checks.
         """
         page = self._page
         try:
-            # Use a JS click to bypass Playwright actionability checks.
-            # A chip/multiselect dropdown (e.g. Status options) can be open on
-            # top of the panel Search button — Playwright's native click() would
-            # fail with "element covered by another element".  Pressing Escape
-            # to dismiss the dropdown first risks closing the filter panel itself
-            # (Ivalua routes Escape to the panel close handler in some versions).
-            # A direct JS btn.click() fires the submit handler unconditionally
-            # regardless of any overlay — the safest approach.
-            found = page.evaluate("""() => {
-                // Try selectors in priority order — Ivalua generates IDs from
-                // the control name hierarchy (colons → underscores) so the exact
-                // ID varies by page but the pattern is stable.
-                const selectors = [
-                    // Ivalua advanced filter bar Search button (Browse list pages)
-                    '[name="body:x:prxAdvFilterBar:x:cmdSearchBtn"]',
-                    '#body_x_prxAdvFilterBar_x_cmdSearchBtn',
-                    // Fallback: any submit button inside the left filter panel buttons div
-                    '.iv-filter-panel-buttons button[type="submit"]',
-                    '.iv-filter-panel-buttons button',
-                    '#leftPanel .iv-filter-panel-buttons button',
-                    // Legacy ID that was assumed (may exist on older Ivalua versions)
-                    '#leftPanel_btnPanelSearch',
-                ];
-                for (const sel of selectors) {
-                    const btn = document.querySelector(sel);
-                    if (btn) {
-                        btn.click();
-                        return 'clicked:' + sel;
-                    }
-                }
-                return 'not-found';
-            }""")
-            print(f"           [panel-search] JS result: {found!r}")
-            if found and found.startswith('clicked'):
+            selector = self._discover_element('panel_search_button')
+            if not selector:
+                return None
+            css = selector.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'")
+            found = page.evaluate(f"""() => {{
+                const btn = document.querySelector('{css}');
+                if (!btn) return false;
+                btn.click();
+                return true;
+            }}""")
+            if found:
                 page.wait_for_load_state("networkidle", timeout=8000)
                 self._last_selectors = [
-                    {"type": "xpath",
-                     "value": '//*[@name="body:x:prxAdvFilterBar:x:cmdSearchBtn"]',
-                     "successes": 1, "failures": 0}
+                    {"type": "css", "value": selector, "successes": 1, "failures": 0}
                 ]
-                print(f"           [panel-search] clicked left panel Search button (JS)")
+                print(f"           [panel-search] clicked via discovered selector: {selector!r}")
                 return "clicked panel Search button"
         except Exception as e:
             print(f"           [panel-search] failed: {e}")
@@ -112,22 +187,37 @@ IVALUA BROWSE LIST PAGE RULES:
         """
         page = self._page
         try:
-            result = page.evaluate("""(lbl) => {
-                const labels = Array.from(document.querySelectorAll(
-                    '[data-iv-role="label"], label, th, .field-label, legend'
-                ));
-                const match = labels.find(el => {
+            label_selectors = json.dumps(self._get_selectors('field_label'))
+            wrapper_selectors = json.dumps(self._get_selectors('field_control_wrapper'))
+            input_selectors = json.dumps(self._get_selectors('autocomplete_input'))
+            result = page.evaluate(f"""(lbl) => {{
+                const labelSels = {label_selectors};
+                const wrapperSels = {wrapper_selectors};
+                const inputSels = {input_selectors};
+
+                const labels = Array.from(document.querySelectorAll(labelSels.join(', ')));
+                const match = labels.find(el => {{
                     const t = el.textContent.trim().replace(/\\s*\\*\\s*$/, '').trim();
                     return t === lbl || t.startsWith(lbl);
-                });
-                if (!match) return {found: false, reason: 'label not found'};
-                const wrapper = match.closest('[data-iv-role="controlWrapper"]')
-                              || match.parentElement;
-                if (!wrapper) return {found: false, reason: 'no wrapper'};
-                const inp = wrapper.querySelector('input[type="text"], input.search, input[role="combobox"]');
-                if (!inp) return {found: false, reason: 'no input'};
-                return {found: true, id: inp.id, name: inp.name};
-            }""", label)
+                }});
+                if (!match) return {{found: false, reason: 'label not found'}};
+
+                let wrapper = null;
+                for (const sel of wrapperSels) {{
+                    wrapper = match.closest(sel);
+                    if (wrapper) break;
+                }}
+                if (!wrapper) wrapper = match.parentElement;
+                if (!wrapper) return {{found: false, reason: 'no wrapper'}};
+
+                let inp = null;
+                for (const sel of inputSels) {{
+                    inp = wrapper.querySelector(sel);
+                    if (inp) break;
+                }}
+                if (!inp) return {{found: false, reason: 'no input'}};
+                return {{found: true, id: inp.id, name: inp.name}};
+            }}""", label)
 
             if result and result.get("found"):
                 inp_id = result.get("id")
@@ -159,17 +249,21 @@ IVALUA BROWSE LIST PAGE RULES:
         """
         page = self._page
         js_text = chip_text.replace("\\", "\\\\").replace('"', '\\"').lower()
+        chip_selectors = json.dumps(self._get_selectors('chip_widget'))
+        delete_selectors = json.dumps(self._get_selectors('chip_delete_button'))
         try:
             result = page.evaluate(f"""() => {{
-                const chips = document.querySelectorAll(
-                    '.iv-chip, [data-iv-role="chip"], .label.transition, .ui.label'
-                );
+                const chipSels = {chip_selectors};
+                const deleteSels = {delete_selectors};
+                const chips = document.querySelectorAll(chipSels.join(', '));
                 for (const chip of chips) {{
                     const text = chip.textContent.trim().toLowerCase();
                     if (text === "{js_text}" || text.includes("{js_text}")) {{
-                        const del = chip.querySelector(
-                            'button, [data-iv-role="delete"], .delete, i.delete.icon'
-                        );
+                        let del = null;
+                        for (const sel of deleteSels) {{
+                            del = chip.querySelector(sel);
+                            if (del) break;
+                        }}
                         if (del) {{ del.click(); return {{removed: chip.textContent.trim()}}; }}
                     }}
                 }}
@@ -209,15 +303,19 @@ IVALUA BROWSE LIST PAGE RULES:
         """
         page = self._page
         js_text = text.replace("\\", "\\\\").replace('"', '\\"')
+        link_selectors = json.dumps(self._get_selectors('results_table_link'))
+        cell_selectors = json.dumps(self._get_selectors('results_table_cell'))
         try:
             result = page.evaluate(f"""() => {{
                 const search = "{js_text}";
+                const linkSels = {link_selectors};
+                const cellSels = {cell_selectors};
 
                 // Search for <a> tags inside tbody data cells only —
                 // excludes thead/th column headers and nav links.
-                const linkCandidates = Array.from(document.querySelectorAll(
-                    'tbody td a, tbody tr td a'
-                ));
+                const linkCandidates = Array.from(
+                    document.querySelectorAll(linkSels.join(', '))
+                );
                 let el = linkCandidates.find(e => e.textContent.trim() === search);
                 if (!el) el = linkCandidates.find(e => e.textContent.trim().includes(search));
 
@@ -230,7 +328,9 @@ IVALUA BROWSE LIST PAGE RULES:
                 }}
 
                 // Fallback: <td> cells in tbody with onclick (some Ivalua grids use td-level handlers)
-                const tdCandidates = Array.from(document.querySelectorAll('tbody td'));
+                const tdCandidates = Array.from(
+                    document.querySelectorAll(cellSels.join(', '))
+                );
                 const td = tdCandidates.find(e => e.textContent.trim() === search)
                         || tdCandidates.find(e => e.textContent.trim().includes(search));
                 if (td) {{
@@ -298,25 +398,27 @@ IVALUA BROWSE LIST PAGE RULES:
             # Panel button not found on this page — fall through to generic strategies
         page = self._page
         js_desc = desc.replace("\\", "\\\\").replace('"', '\\"')
+        listbox_selectors = json.dumps(self._get_selectors('autocomplete_dropdown'))
         try:
             result = page.evaluate(f"""() => {{
-                const containers = document.querySelectorAll(
-                    'ul[role="listbox"], .iv-menu-container ul, .scrolling.menu.visible'
-                );
-                for (const lb of containers) {{
-                    // Use getBoundingClientRect instead of offsetParent —
-                    // offsetParent is null for position:fixed/absolute in headless
-                    // Chrome even when the element is visually present.
-                    const rect = lb.getBoundingClientRect();
-                    if (rect.width === 0 && rect.height === 0) continue;
-                    const items = Array.from(lb.querySelectorAll('li, [role="option"], a, span'));
-                    // Exact match first
-                    let item = items.find(el => el.textContent.trim() === "{js_desc}");
-                    // Fall back to contains match
-                    if (!item) item = items.find(el => el.textContent.trim().includes("{js_desc}"));
-                    if (item) {{
-                        item.click();
-                        return {{text: item.textContent.trim(), id: item.id || ''}};
+                const containerSelectors = {listbox_selectors};
+                for (const sel of containerSelectors) {{
+                    const containers = document.querySelectorAll(sel);
+                    for (const lb of containers) {{
+                        // Use getBoundingClientRect instead of offsetParent —
+                        // offsetParent is null for position:fixed/absolute in headless
+                        // Chrome even when the element is visually present.
+                        const rect = lb.getBoundingClientRect();
+                        if (rect.width === 0 && rect.height === 0) continue;
+                        const items = Array.from(lb.querySelectorAll('li, [role="option"], a, span'));
+                        // Exact match first
+                        let item = items.find(el => el.textContent.trim() === "{js_desc}");
+                        // Fall back to contains match
+                        if (!item) item = items.find(el => el.textContent.trim().includes("{js_desc}"));
+                        if (item) {{
+                            item.click();
+                            return {{text: item.textContent.trim(), id: item.id || ''}};
+                        }}
                     }}
                 }}
                 return null;
@@ -345,20 +447,30 @@ IVALUA BROWSE LIST PAGE RULES:
         # only when no dropdown/listbox is currently open (to avoid clicking
         # a table cell instead of a listbox option when both are visible).
         # Only try the table-link strategy for compact single-token identifiers
-        # (no spaces, e.g. "PO074788") — never for UI labels like "Search",
-        # "filter panel search", or column header text.
-        if ' ' not in desc:
+        # (no spaces, e.g. "PO074788") — never for common interactive button
+        # labels (Submit, Cancel, Save, etc.) or UI labels like "Search".
+        # These must fall through to generic role="button" / get_by_text strategies.
+        _INTERACTIVE_LABELS: frozenset[str] = frozenset({
+            "submit", "cancel", "save", "ok", "yes", "no", "close",
+            "delete", "edit", "create", "add", "remove", "reset",
+            "apply", "confirm", "next", "back", "previous", "continue",
+            "done", "finish", "proceed", "update", "approve", "reject",
+            "send", "export", "import", "upload", "download", "print",
+            "refresh", "reload", "clear", "open", "view", "select",
+        })
+        if ' ' not in desc and desc.lower() not in _INTERACTIVE_LABELS:
             try:
-                listbox_open = page.evaluate("""() => {
-                    const lbs = document.querySelectorAll(
-                        'ul[role="listbox"], .iv-menu-container ul, .scrolling.menu.visible'
-                    );
-                    for (const lb of lbs) {
-                        const r = lb.getBoundingClientRect();
-                        if (r.width > 0 && r.height > 0) return true;
-                    }
+                listbox_open = page.evaluate(f"""() => {{
+                    const sels = {listbox_selectors};
+                    for (const sel of sels) {{
+                        const lbs = document.querySelectorAll(sel);
+                        for (const lb of lbs) {{
+                            const r = lb.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0) return true;
+                        }}
+                    }}
                     return false;
-                }""")
+                }}""")
                 if not listbox_open:
                     result = self._click_result_row_link(desc)
                     if result:
@@ -419,12 +531,14 @@ IVALUA BROWSE LIST PAGE RULES:
           2. startsWith match  — "Department" → "Department of Finance"
           3. includes match    — "yard" → '"D" YARD INTERNATIONAL, INC'
 
-        Searches ALL li and [role="option"] elements (no container assumption) —
-        the Ivalua dropdown structure varies across widget types and versions, and
-        the only reliable marker is the item text itself.
+        Searches ALL li and [role="option"] elements inside visible dropdown
+        containers resolved from the registry — the Ivalua dropdown structure
+        varies across widget types and versions, and the only reliable marker
+        is the item text itself.
         """
         page = self._page
         js_value = value.replace("\\", "\\\\").replace('"', '\\"').lower()
+        container_selectors = json.dumps(self._get_selectors('autocomplete_dropdown'))
 
         for attempt in range(8):
             page.wait_for_timeout(1000)
@@ -434,14 +548,7 @@ IVALUA BROWSE LIST PAGE RULES:
 
                     // ONLY search inside visible dropdown containers — never scan the
                     // full page DOM, which picks up navigation menus and hidden elements.
-                    const containerSelectors = [
-                        'ul[role="listbox"]',
-                        '[role="listbox"]',
-                        '.iv-menu-container ul',
-                        '.scrolling.menu.visible',
-                        '.scrolling.menu',
-                        '.iv-menu-container',
-                    ];
+                    const containerSelectors = {container_selectors};
                     let candidates = [];
                     for (const sel of containerSelectors) {{
                         const containers = document.querySelectorAll(sel);
@@ -545,25 +652,41 @@ IVALUA BROWSE LIST PAGE RULES:
         - Generic click() on the control can accidentally open the "See All" modal.
         """
         page = self._page
+        label_selectors = json.dumps(self._get_selectors('field_label'))
+        wrapper_selectors = json.dumps(self._get_selectors('field_control_wrapper'))
+        input_selectors = json.dumps(
+            [s for s in self._get_selectors('autocomplete_input')
+             if 'combobox' in s or 'search' in s or 'autocomplete' in s]
+        )
         try:
-            result = page.evaluate("""(lbl) => {
-                const labelEls = Array.from(document.querySelectorAll(
-                    '[data-iv-role="label"], label, th, .field-label'
-                ));
-                const match = labelEls.find(el => {
+            result = page.evaluate(f"""(lbl) => {{
+                const labelSels = {label_selectors};
+                const wrapperSels = {wrapper_selectors};
+                const inputSels = {input_selectors};
+
+                const labelEls = Array.from(document.querySelectorAll(labelSels.join(', ')));
+                const match = labelEls.find(el => {{
                     const txt = el.textContent.trim().replace(/\\s*\\*\\s*$/, '').trim();
                     return txt === lbl || txt.startsWith(lbl);
-                });
-                if (!match) return {found: false, reason: 'label not found'};
-                const wrapper = match.closest('[data-iv-role="controlWrapper"]') ||
-                                match.parentElement;
-                if (!wrapper) return {found: false, reason: 'no wrapper'};
-                const inp = wrapper.querySelector(
-                    'input[role="combobox"], input.search, input[aria-autocomplete]'
-                );
-                if (!inp) return {found: false, reason: 'no search input'};
-                return {found: true, id: inp.id, name: inp.name};
-            }""", label)
+                }});
+                if (!match) return {{found: false, reason: 'label not found'}};
+
+                let wrapper = null;
+                for (const sel of wrapperSels) {{
+                    wrapper = match.closest(sel);
+                    if (wrapper) break;
+                }}
+                if (!wrapper) wrapper = match.parentElement;
+                if (!wrapper) return {{found: false, reason: 'no wrapper'}};
+
+                let inp = null;
+                for (const sel of inputSels) {{
+                    inp = wrapper.querySelector(sel);
+                    if (inp) break;
+                }}
+                if (!inp) return {{found: false, reason: 'no search input'}};
+                return {{found: true, id: inp.id, name: inp.name}};
+            }}""", label)
 
             if result and result.get("found"):
                 inp_id = result.get("id")
@@ -618,6 +741,7 @@ IVALUA BROWSE LIST PAGE RULES:
            prevent "EmergencyEmergency"-style doubling, then press_sequentially.
         """
         page = self._page
+        dropdown_selector_list = self._get_selectors('autocomplete_dropdown')
         try:
             loc = page.get_by_role("combobox", name=label).first
             if loc.count() == 0:
@@ -629,17 +753,17 @@ IVALUA BROWSE LIST PAGE RULES:
             loc.click(timeout=2000)
             page.wait_for_timeout(1200)   # allow dropdown animation / data load
 
-            items_visible = page.evaluate("""() => {
+            items_visible = page.evaluate(f"""() => {{
                 const containers = document.querySelectorAll(
-                    'ul[role="listbox"], .iv-menu-container ul, .scrolling.menu.visible'
+                    {json.dumps(', '.join(dropdown_selector_list))}
                 );
-                for (const c of containers) {
-                    if (c.offsetParent) {
+                for (const c of containers) {{
+                    if (c.offsetParent) {{
                         return c.querySelectorAll('li, [role="option"]').length;
-                    }
-                }
+                    }}
+                }}
                 return 0;
-            }""")
+            }}""")
 
             if items_visible > 0:
                 # Static dropdown: options already visible — do NOT type.
@@ -752,3 +876,7 @@ IVALUA BROWSE LIST PAGE RULES:
         except Exception as e:
             print(f"           [fill date-end] failed: {e}")
         return None
+
+
+# Populate PLATFORM_GUIDANCE at import time so run.py can access it as a class attribute.
+IvaluaBrowserSession._init_guidance()

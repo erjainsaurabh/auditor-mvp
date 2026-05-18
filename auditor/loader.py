@@ -163,6 +163,35 @@ def load_test_data(path: str | Path | None) -> dict[str, str]:
     return {str(k): str(v) for k, v in raw.items()}
 
 
+def _validate_unique_ids(merged: FlowFile) -> None:
+    """Raise ValueError if any test condition ID or step ID is duplicated.
+
+    Duplicate IDs cause the dependency graph builder to create self-loops,
+    which topological sort correctly rejects as a cycle. Catching this early
+    produces a clear, actionable error instead of a cryptic NetworkXUnfeasible.
+    """
+    seen_tc: dict[str, str] = {}    # tc_id → flow_id
+    seen_step: dict[str, str] = {}  # step_id → tc_id
+
+    for flow in merged.flows:
+        for tc in flow.test_conditions:
+            if tc.id in seen_tc:
+                raise ValueError(
+                    f"Duplicate test condition id '{tc.id}' in flow '{flow.id}' "
+                    f"— already defined in flow '{seen_tc[tc.id]}'. "
+                    f"All test condition ids must be unique across the file."
+                )
+            seen_tc[tc.id] = flow.id
+            for step in tc.steps:
+                if step.id in seen_step:
+                    raise ValueError(
+                        f"Duplicate step id '{step.id}' in tc '{tc.id}' "
+                        f"— already defined in tc '{seen_step[step.id]}'. "
+                        f"All step ids must be unique across the file."
+                    )
+                seen_step[step.id] = tc.id
+
+
 def load_flows(*paths: str | Path, test_data_path: str | Path | None = None) -> FlowFile:
     """Load and merge one or more YAML flow files.
 
@@ -183,6 +212,8 @@ def load_flows(*paths: str | Path, test_data_path: str | Path | None = None) -> 
         for step in ff.all_steps:
             step.source_file = stem
         merged.flows.extend(ff.flows)
+
+    _validate_unique_ids(merged)
 
     test_data = load_test_data(test_data_path)
     if test_data:

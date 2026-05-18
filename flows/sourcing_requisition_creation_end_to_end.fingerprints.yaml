@@ -2,100 +2,36 @@ steps:
   7qrk5ek:
     step_id: 7qrk5ek
     source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T14:24:07.150769+00:00'
-    run_id: run_33795131
+    recorded_at: '2026-05-16T02:52:29.725960+00:00'
+    run_id: run_efe05875
     verdict: verified
     confidence: high
     actions:
     - tool: navigate
       args:
-        target: Home
+        target: /
       selectors: []
       assertions: []
     - tool: read_page
       args: {}
       selectors: []
       assertions: []
-    - tool: click
+    - tool: take_screenshot
       args:
-        element_description: Back to home
-      selectors:
-      - type: xpath_structural
-        value: /html/body/a
-        successes: 12
-        failures: 0
-      - type: text
-        value: Back to home
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
-      selectors: []
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Email Address
-        value: '{{app_username}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="Ecom_User_ID"]
-        successes: 12
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: fill_field
-      args:
-        field_label: Password
-        value: '{{app_password}}'
-      selectors:
-      - type: xpath
-        value: //*[@id="Ecom_Password"]
-        successes: 12
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[2]/div/input
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: click
-      args:
-        element_description: Sign in
-      selectors:
-      - type: xpath
-        value: //*[@id="loginButton2"]
-        successes: 12
-        failures: 0
-      - type: xpath_structural
-        value: /html/body/div[7]/div/div/section/div/div[2]/div/div/form/div/div[3]/span
-        successes: 1
-        failures: 0
-      - type: text
-        value: Sign in
-        successes: 1
-        failures: 0
-      assertions: []
-    - tool: read_page
-      args: {}
+        label: Home page loaded with main navigation menu visible
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: 'Login was successful with the provided credentials (DHSACCOSTAFFADMINTWO@doitt.nyc.gov).
-          The home page loaded successfully and displays a prominent main navigation
-          menu with the expected items including: Vendors, Catalog, Requisition, Sourcing,
-          Contracts, Ordering, Receiving, Financials, Reporting, Rules, Support, and
-          Vendor Reporting. The page title shows "Home Page" and the user is logged
-          in as "DHS A." The main navigation is clearly visible and functional.'
+        reasoning: 'The home page has loaded successfully and displays a main navigation
+          menu with the expected items: Requisition, Contracts, Vendors, and many
+          other menu items (Catalog, Sourcing, Ordering, Receiving, Financials, Reporting,
+          Rules, Support). The navigation menu is clearly visible in the page header,
+          confirming that login has succeeded and the home page is fully loaded.'
       selectors: []
-      assertions:
-      - Home Page
-      - DHS A.
+      assertions: []
     step_hash: 843473e6fd22
   821wh66:
     step_id: 821wh66
@@ -135,7 +71,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/button
-        successes: 12
+        successes: 14
         failures: 0
       - type: text
         value: Requisition
@@ -171,7 +107,7 @@ steps:
       selectors:
       - type: xpath_structural
         value: /html/body/form/div[3]/header/div/div/div[2]/div/nav/ul/li[3]/ul/li/a
-        successes: 12
+        successes: 14
         failures: 0
       - type: text
         value: Browse Requisitions
@@ -199,8 +135,8 @@ steps:
   4kish7i:
     step_id: 4kish7i
     source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T14:24:47.519731+00:00'
-    run_id: run_33795131
+    recorded_at: '2026-05-16T02:39:26.172285+00:00'
+    run_id: run_0dd67eb1
     verdict: verified
     confidence: high
     actions:
@@ -212,9 +148,13 @@ steps:
       args:
         element_description: Create Sourcing Requisition
       selectors:
+      - type: xpath
+        value: //*[@id="proxyActionBar_x_button_basket_190613075454"]
+        successes: 1
+        failures: 0
       - type: xpath_structural
-        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a/span
-        successes: 12
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[3]/a
+        successes: 1
         failures: 0
       - type: text
         value: Create Sourcing Requisition
@@ -225,20 +165,26 @@ steps:
       args: {}
       selectors: []
       assertions: []
+    - tool: take_screenshot
+      args:
+        label: Create Requisition form opened successfully with title and Requisition
+          Header section
+      selectors: []
+      assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: The 'Create Sourcing Requisition' button was clicked successfully,
-          which opened the Create Requisition form. The page displays the title "Create
-          Requisition" as a level-1 heading, and the Requisition Header section is
-          clearly visible with all expected form fields (Status, Draft Type, Sourcing
-          Label, Requestor, Requesting Agency, Program, Contract Type, Anticipated
-          Contract Period, etc.). All elements specified in the expected outcome are
-          present and visible.
+        reasoning: Clicking 'Create Sourcing Requisition' button successfully opened
+          the Create Requisition form. The page title "Create Requisition" is displayed
+          as a level 1 heading, and the "Requisition Header" section is visible with
+          all expected fields including Status, Draft Type, Sourcing Label, Requestor,
+          Requesting Agency, Program, Contract Type, and other form elements. All
+          expected outcome conditions have been met.
       selectors: []
       assertions:
       - Create Requisition
+      - Requisition Header
     step_hash: 932356df97a4
   dooy8cw:
     step_id: dooy8cw
@@ -475,7 +421,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 12
+        successes: 14
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[2]/div/table/tbody/tr/td/button
@@ -618,7 +564,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtLabel"]
-        successes: 11
+        successes: 13
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[3]/td/div/div/div/input
@@ -666,7 +612,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selAtypeCodeFundType_search"]
-        successes: 11
+        successes: 13
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[17]/td/div/div/div/input
@@ -713,7 +659,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskProcExeSum"]
-        successes: 11
+        successes: 13
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td[2]/div/div/div[2]/table/tbody/tr/td/div/div/textarea
@@ -751,8 +697,8 @@ steps:
   15d1wd3:
     step_id: 15d1wd3
     source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T21:53:21.145698+00:00'
-    run_id: run_751db281
+    recorded_at: '2026-05-16T02:40:44.603232+00:00'
+    run_id: run_0dd67eb1
     verdict: verified
     confidence: high
     actions:
@@ -775,19 +721,18 @@ steps:
       assertions: []
     - tool: take_screenshot
       args:
-        label: Requisition saved with REQ number assigned and action buttons visible
+        label: Saved requisition with REQ number and buttons visible
       selectors: []
       assertions: []
     - tool: verify_claim
       args:
         verdict: verified
         confidence: high
-        reasoning: 'After saving the filled requisition form, the page successfully
-          displays: (1) a page title with the format ''Requisition: REQ262423 - Test
-          Requisition MVP (Draft)'' showing a unique REQ number assigned by the system,
-          and (2) both the ''Cancel requisition'' and ''Duplicate Req.'' buttons are
-          visible on the page, confirming the requisition has been saved successfully
-          with draft status.'
+        reasoning: 'After saving the fully filled requisition form, the page displays:
+          (1) Page title shows ''Requisition: REQ262428 - Test Requisition MVP - automation
+          (Draft)'' with a unique REQ number (REQ262428), the label text, and (Draft)
+          status; (2) Both ''Cancel requisition'' and ''Duplicate Req.'' buttons are
+          visible in the main content area. All expected outcomes are confirmed.'
       selectors: []
       assertions:
       - Cancel requisition
@@ -811,7 +756,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_containerTab_partprxtab_tabc_190731104948"]
-        successes: 9
+        successes: 11
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/div/div[2]/nav/ul/li[2]
@@ -894,7 +839,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 3
+        successes: 5
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[2]/div/table/tbody/tr/td/button
@@ -946,7 +891,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_proxy_basket_190806113024_x_cbBpquesEmer1_yes"]
-        successes: 4
+        successes: 6
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[4]/td/div/div/div/div/table/tbody/tr[15]/td/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/fieldset/ul/li/div/div/label/input
@@ -989,7 +934,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_proxy_basket_190806113024_x_cbBpquesCsb4_12_yes"]
-        successes: 1
+        successes: 3
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[4]/td/div/div/div/div/table/tbody/tr[15]/td/div/table/tbody/tr[3]/td/div/table/tbody/tr[2]/td/div/fieldset/ul/li/div/div/label/input
@@ -1033,7 +978,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="proxyActionBar_x__cmdSave"]
-        successes: 1
+        successes: 3
         failures: 0
       assertions: []
     - tool: read_page
@@ -1115,7 +1060,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrg_search"]
-        successes: 7
+        successes: 9
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[5]/td/div/div/div/input
@@ -1144,11 +1089,29 @@ steps:
   zxlva18:
     step_id: zxlva18
     source_file: sourcing_requisition_creation_end_to_end
-    recorded_at: '2026-05-14T21:52:28.987274+00:00'
-    run_id: run_751db281
+    recorded_at: '2026-05-16T00:09:57.881732+00:00'
+    run_id: run_358ed3fd
     verdict: verified
     confidence: high
     actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Division
+        value: '{{division}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_identity_prxidentity_x_selOrgaLevelDivOrgaNodeDiv_search"]
+        successes: 2
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[6]/td/div/table/tbody/tr/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
     - tool: read_page
       args: {}
       selectors: []
@@ -1157,14 +1120,13 @@ steps:
       args:
         verdict: verified
         confidence: high
-        reasoning: The Division field is now visible and displays the selected value
-          "CHIEF OF STAFF". The page clearly shows the combobox "Division *" with
-          the text "CHIEF OF STAFF" displayed below it, confirming that the field
-          has accepted the selection and is showing the chosen division value.
+        reasoning: The Division field successfully accepted and displays the selected
+          value "EXECUTIVE DIRECTOR". The page snapshot shows the Division combobox
+          with the value "EXECUTIVE DIRECTOR" displayed immediately after the field
+          label.
       selectors: []
       assertions:
-      - CHIEF OF STAFF
-      - Division *
+      - EXECUTIVE DIRECTOR
     step_hash: f8f2a6b37c43
   lc0w15d:
     step_id: lc0w15d
@@ -1185,7 +1147,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtr"]
-        successes: 6
+        successes: 8
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[3]/div/div/div/input
@@ -1199,7 +1161,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_txtBskAntiCtrEnd"]
-        successes: 6
+        successes: 8
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[14]/td/div/table/tbody/tr/td[6]/div/div/div/input
@@ -1245,7 +1207,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_selPmethCodeReq_search"]
-        successes: 4
+        successes: 6
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[3]/td/div/div/div[2]/table/tbody/tr/td/div/div/div/input
@@ -1314,7 +1276,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_identity_prxidentity_x_selFtypeCodeCtrType_search"]
-        successes: 6
+        successes: 8
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div[2]/table/tbody/tr[10]/td/div/div/div/input
@@ -1355,7 +1317,7 @@ steps:
       selectors:
       - type: xpath
         value: //*[@id="body_x_tabc_tab_tabc_190731104948_prxtab_tabc_190731104948_x_proxy_basket_190806113024_x_selSupIdSs4_3_search"]
-        successes: 1
+        successes: 3
         failures: 0
       - type: xpath_structural
         value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/div/div[2]/table/tbody/tr[4]/td/div/div/div/div/table/tbody/tr[15]/td/div/table/tbody/tr[2]/td/div/table/tbody/tr[2]/td/div/div/div/input
@@ -1385,3 +1347,117 @@ steps:
       - yard
       - Delete the value.
     step_hash: 0c0476b760d6
+  ae3433ee-ce51-471d-9f4e-2fc54b9b314e:
+    step_id: ae3433ee-ce51-471d-9f4e-2fc54b9b314e
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-16T02:42:36.447440+00:00'
+    run_id: run_0dd67eb1
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /en/ord/order_browse/contract_budget
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Open advanced search panel
+      selectors:
+      - type: xpath
+        value: //*[@id="leftPanel_btnPanelOpen"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/div/div/button[3]
+        successes: 1
+        failures: 0
+      - type: text
+        value: Open advanced search panel
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: select_option
+      args:
+        field_label: Status
+        option_value: Active
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_ddlStatus_search"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/div/div[2]/div/div[2]/div/div/div/div/div/div/div/div[2]/div/div[2]/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: Search
+      selectors:
+      - type: css
+        value: '[name*="cmdSearchBtn"][name*="FilterBar"]'
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Successfully opened the advanced search panel on Browse Contract
+          Budgets, set the Status filter to "Active" using select_option, and clicked
+          the Search button. The results table now displays multiple PO records all
+          with Status "Active" (PO074788, PO074770, PO074762, etc.). The filter chip
+          "Status: Active" is visible at the top of the results, confirming the filter
+          was applied. The expected outcome is satisfied.'
+      selectors: []
+      assertions:
+      - Active
+    step_hash: fd84be005811
+  b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891:
+    step_id: b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891
+    source_file: sourcing_requisition_creation_end_to_end
+    recorded_at: '2026-05-16T00:12:37.471183+00:00'
+    run_id: run_358ed3fd
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: PO074770
+      selectors:
+      - type: text
+        value: PO074770
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully clicked on PO074770 link from the results table and
+          the overview page has loaded. The page URL changed from `/order_browse/contract_budget`
+          to `/order_manage/74770`, and the page displays the full PO details including
+          the PO ID (PO074770), description, vendor name ("D" YARD INTERNATIONAL,
+          INC), status (Active), and all relevant order header information. The Overview
+          tab is selected and showing comprehensive PO details confirming the correct
+          record has been opened.
+      selectors: []
+      assertions: []
+    step_hash: e19b707b08bd

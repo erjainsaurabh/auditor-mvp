@@ -75,3 +75,7 @@ These are in `AUDITOR_AGENT_FRAMEWORK.md` but not yet implemented:
 - `✓` **Architectural rename** — YAML and code renamed: `steps` → `test_conditions`, `claims` → `steps`, IDs updated throughout (`loader.py`, `agent.py`, `graph.py`, `fingerprint.py`, `report.py`, `run.py`)
 - `✓` **Warm-run validation** — 32/32 verified with fingerprints; ⚡ hit: 29, miss: 3, none: 0
 - `✓` **BA/QA schema separation** — `navigation`, `setup`, `action`, `input`, `output_capture` moved under `execution:` block; BA layer (`goal`, `description`, `type`, `expected`, `depends_on`, `data`) now clean of developer concerns
+- `✓` **Element registry decoupling** — CSS selector strategies extracted to `ivalua_elements.yaml`; `_discover_element()` tries strategies in order, caches winner, prints candidates on miss; Python code is selector-free
+- `✓` **Prompt externalization** — system prompt → `auditor/prompts/system_prompt.md`, tool definitions → `auditor/prompts/tool_definitions.yaml`, platform guidance → `auditor/platforms/ivalua_guidance.md`; zero Python changes to tune prompts
+- `✓` **Bug: _click_result_row_link intercepting button labels** — added `_INTERACTIVE_LABELS` blocklist in `_platform_click_priority`; "Submit", "Cancel", "Save", "OK" etc. now fall through to `get_by_role("button")` strategies
+- `✓` **Bug: _focused_snapshot hiding popup content** — added safety check: if `ancestor_line > len(window)` (hiding more than showing), return full snapshot; fixes POCR popup Submit/Cancel buttons disappearing into `[... N lines above ...]`

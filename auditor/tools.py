@@ -170,6 +170,14 @@ class BrowserSession:
                 break
 
         window = lines[ancestor_line:end]
+
+        # Safety: if the focused window would hide more lines above (prefix) than
+        # it actually shows, the anchor is poorly placed — typically a modal/popup
+        # whose Submit/Cancel buttons sit above the last-clicked dropdown item.
+        # In that case return the full snapshot so the LLM sees the entire page.
+        if ancestor_line > len(window):
+            return full_snapshot
+
         prefix = f"[... {ancestor_line} lines above ...]\n" if ancestor_line > 0 else ""
         suffix = f"\n[... {len(lines) - end} lines below ...]" if end < len(lines) else ""
         return prefix + "\n".join(window) + suffix

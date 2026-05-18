@@ -1,13 +1,3 @@
+base_budget: '74770'
 app_password: change4hhs
 app_username: DOCFINANCEMANAGER@doitt.nyc.gov
-label: Test Requisition MVP - automation
-division: EXECUTIVE DIRECTOR
-funding_type: Expense
-contract_type: General Contract (CT1)
-vendor_search: yard
-requesting_agency: Department of Homeless Services
-procurement_method: Emergency
-contract_period_end: 5/31/2030
-contract_period_start: 6/1/2026
-procurement_description: Test procurement for auditor MVP verification- automation
-base_budget: '74788'

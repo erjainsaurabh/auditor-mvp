@@ -366,7 +366,8 @@ def _try_fingerprint_replay(
 
         elif tool == "take_screenshot":
             label = args.get("label", "replay")
-            evidence.save_screenshot(session.page, f"{step.id}_{label}")
+            path = evidence.save_screenshot(session.page, f"{step.id}_{label}")
+            evidence.log_action(f"take_screenshot(label={label!r}) [replay]", path)
 
         elif tool == "verify_claim":
             # Check assertions against current page before accepting the stored verdict
@@ -795,6 +796,15 @@ def _dispatch(
                     # section toggles): show the full page so the LLM sees the result
                     # without a focused window anchored on the wrong element.
                     session._last_interacted_label = ""
+            # Always append post-click page state so the LLM can detect navigation
+            # even when the click itself reports an error (e.g. a server-side submit
+            # on a visually-disabled button that causes a page transition).
+            try:
+                page = session._page
+                page.wait_for_load_state("domcontentloaded", timeout=2000)
+                result += f"\npage_after_click: url={page.url} | title={page.title()}"
+            except Exception:
+                pass
             return result
         case "hover":
             return session.hover(args["element_description"])
