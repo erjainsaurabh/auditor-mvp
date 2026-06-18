@@ -18,10 +18,18 @@ COPY run.py       ./
 COPY api.py       ./
 COPY config.yaml  ./
 
-# Runtime config — credentials and API key are injected via --env or --env-file
-# at container start, never baked into the image.
+# Entrypoint creates required directories then starts uvicorn.
+# Flow YAMLs and test_data are NOT baked into the image — they are delivered
+# at runtime via the API (yaml_contents / data_content fields) or uploaded
+# to the persistent volume.  Only fingerprints and strategy_stats live on
+# the volume and persist across runs.
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+# Runtime config — credentials and API key are injected via fly secrets,
+# never baked into the image.
 ENV AUDITOR_HEADLESS=true
 
 EXPOSE 8000
 
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./docker-entrypoint.sh"]

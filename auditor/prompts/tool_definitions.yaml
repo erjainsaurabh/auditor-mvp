@@ -121,6 +121,36 @@
 
 - type: function
   function:
+    name: download_file
+    description: "Click a button or link that triggers a file download (Excel, CSV, PDF) and wait for the download to complete. Returns a token (e.g. 'downloaded_file_1') that upload_file can use to reference the file in a later step."
+    parameters:
+      type: object
+      properties:
+        element_description:
+          type: string
+          description: "Visible label of the button or link that triggers the download (e.g. 'Export to Excel', 'Generate Report')"
+      required:
+        - element_description
+
+- type: function
+  function:
+    name: upload_file
+    description: "Upload a file to a file-input field or drop zone. Use file_ref to pass either a token from download_file (e.g. 'downloaded_file_1') or a fixture file path (e.g. 'fixtures/sample.xlsx')."
+    parameters:
+      type: object
+      properties:
+        field_label:
+          type: string
+          description: "Label of the file input field or drop zone (e.g. 'Import Defects', 'Attach File')"
+        file_ref:
+          type: string
+          description: "Token returned by download_file (e.g. 'downloaded_file_1') or a path to a fixture file"
+      required:
+        - field_label
+        - file_ref
+
+- type: function
+  function:
     name: take_screenshot
     description: "Capture a screenshot as evidence with a descriptive label"
     parameters:

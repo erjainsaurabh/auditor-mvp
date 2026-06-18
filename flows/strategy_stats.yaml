@@ -1,0 +1,49 @@
+platform: ivalua
+stats:
+  click:
+    aria_label:
+      tried: 5
+      wins: 0
+    button:
+      tried: 7
+      wins: 1
+    link:
+      tried: 6
+      wins: 0
+    option:
+      tried: 7
+      wins: 0
+    platform_priority:
+      tried: 5
+      wins: 5
+    tab:
+      tried: 7
+      wins: 0
+    text_desc:
+      tried: 5
+      wins: 0
+    text_exact:
+      tried: 14
+      wins: 8
+    text_fuzzy:
+      tried: 5
+      wins: 0
+    title:
+      tried: 5
+      wins: 0
+  fill_field:
+    aria_label:
+      tried: 4
+      wins: 0
+    label_exact:
+      tried: 5
+      wins: 0
+    label_fuzzy:
+      tried: 5
+      wins: 0
+    name_id:
+      tried: 4
+      wins: 0
+    placeholder:
+      tried: 9
+      wins: 5

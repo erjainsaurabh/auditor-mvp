@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
+
+if TYPE_CHECKING:
+    from auditor.strategy_stats import StrategyStats
 
 
 @dataclass
@@ -19,6 +24,11 @@ class BrowserSession:
     # Label/text of the most recently interacted element — used by read_page
     # to focus the aria snapshot and by take_screenshot to highlight on screen.
     _last_interacted_label: str = field(default="", init=False, repr=False)
+    # Optional strategy stats — set by run.py after session creation.
+    # When present, click/fill_field strategies are ordered by historical win rate.
+    _stats: StrategyStats | None = field(default=None, init=False, repr=False)
+    # Tracks files downloaded during this session — token → local Path
+    _downloads: dict[str, Path] = field(default_factory=dict, init=False, repr=False)
 
     def start(self) -> None:
         self._playwright = sync_playwright().start()
@@ -367,6 +377,12 @@ class BrowserSession:
         # Priority 0: platform-specific strategies (listbox widgets, custom dropdowns, etc.)
         result = self._platform_click_priority(desc)
         if result is not None:
+            # Count platform-priority wins so they appear in strategy stats.
+            # Use key "platform_priority" — a separate bucket from the generic
+            # waterfall so its high win rate doesn't pollute generic ordering.
+            if self._stats and not result.startswith("error"):
+                self._stats.record_tried("click", "platform_priority")
+                self._stats.record_win("click", "platform_priority")
             return result
 
         # Strip a leading role prefix the LLM sometimes adds, e.g. 'tab "Foo"' → 'Foo'
@@ -376,43 +392,56 @@ class BrowserSession:
         css_desc = desc.replace('"', '\\"')
         css_clean = clean.replace('"', '\\"')
 
-        # Strategies paired with a boolean: True = this is a tab/navigation click.
-        # Tab clicks should NOT anchor the focused snapshot — the revealed tabpanel
-        # content appears elsewhere in the DOM, far below the tab element itself.
+        # Each entry: (locator_fn, is_tab, strategy_key)
+        # is_tab=True  → tab click: wait for tabpanel render, don't anchor snapshot.
+        # strategy_key → used by StrategyStats to track win rates per strategy type.
         #
         # NOTE: role-based strategies (button, link) run BEFORE text-based ones.
         # Text-based locators (get_by_text) match inner spans/labels first, which
         # are not directly clickable in frameworks like Ivalua where buttons wrap
         # a <span data-iv-role="label"> child.  Role-based lookup resolves to the
         # actual interactive element and passes actionability checks.
-        normal_strategies: list[tuple[Any, bool]] = [
-            (lambda: page.get_by_role("option", name=clean).first, False),
-            (lambda: page.get_by_role("tab", name=clean).first,    True),   # tab
-            (lambda: page.get_by_role("tab", name=desc).first,     True),   # tab
-            (lambda: page.get_by_role("button", name=clean).first, False),  # before text — avoids inner-span match
-            (lambda: page.get_by_role("link", name=clean).first,   False),  # before text
-            (lambda: page.get_by_text(clean, exact=True).first,    False),
-            (lambda: page.get_by_text(desc, exact=True).first,     False),
-            (lambda: page.get_by_text(clean, exact=False).first,   False),
-            (lambda: page.locator(f'[aria-label*="{css_clean}"]').first, False),
-            (lambda: page.locator(f'[title*="{css_clean}"]').first,      False),
+        #
+        # The duplicate tab strategy (desc variant) has been removed — it was
+        # identical to the clean variant for all practical inputs and wasted 1500ms.
+        normal_strategies: list[tuple[object, bool, str]] = [
+            (lambda: page.get_by_role("option", name=clean).first, False, "option"),
+            (lambda: page.get_by_role("tab",    name=clean).first, True,  "tab"),
+            (lambda: page.get_by_role("button", name=clean).first, False, "button"),
+            (lambda: page.get_by_role("link",   name=clean).first, False, "link"),
+            (lambda: page.get_by_text(clean, exact=True).first,    False, "text_exact"),
+            (lambda: page.get_by_text(desc,  exact=True).first,    False, "text_desc"),
+            (lambda: page.get_by_text(clean, exact=False).first,   False, "text_fuzzy"),
+            (lambda: page.locator(f'[aria-label*="{css_clean}"]').first, False, "aria_label"),
+            (lambda: page.locator(f'[title*="{css_clean}"]').first,      False, "title"),
         ]
-        for i, (strategy, is_tab) in enumerate(normal_strategies):
+
+        # Reorder by historical win rate — highest win_rate tried first.
+        # On cold start (no stats / no data) the default order above is preserved.
+        if self._stats:
+            key_rank = {k: i for i, k in enumerate(self._stats.sorted_keys("click"))}
+            normal_strategies.sort(key=lambda t: key_rank.get(t[2], 999))
+
+        for i, (strategy_fn, is_tab, strategy_key) in enumerate(normal_strategies):
+            if self._stats:
+                self._stats.record_tried("click", strategy_key)
             try:
-                loc = strategy()
+                loc = strategy_fn()
                 selectors = self._extract_selectors(loc)
                 if selectors:
                     sel_str = " | ".join(f"{s['type']}={s['value']!r}" for s in selectors)
-                    print(f"           [click strategy {i+1}] element: {sel_str}")
+                    print(f"           [click strategy {strategy_key}] element: {sel_str}")
                 self._last_selectors = selectors
                 loc.click(timeout=1500)
+                if self._stats:
+                    self._stats.record_win("click", strategy_key)
                 # Tab clicks: wait a moment for the tabpanel to render
                 if is_tab:
                     page.wait_for_timeout(600)
                     return f"clicked '{element_description}' (tab)"
                 return f"clicked '{element_description}'"
             except Exception as e:
-                print(f"           [click strategy {i+1}] failed: {e}")
+                print(f"           [click strategy {strategy_key}] failed: {e}")
                 self._last_selectors = []
                 continue
 
@@ -674,28 +703,38 @@ class BrowserSession:
         if result is not None:
             return result
 
-        # Generic strategies 1-5
-        strategies = [
-            lambda: page.get_by_label(label, exact=True).first,
-            lambda: page.get_by_label(label, exact=False).first,
-            lambda: page.get_by_placeholder(label).first,
-            lambda: page.locator(f'[aria-label*="{label}"]').first,
-            lambda: page.locator(f'input[name*="{slug}"], input[id*="{slug}"]').first,
+        # Generic strategies — each tagged with a key for StrategyStats tracking.
+        fill_strategies: list[tuple[object, str]] = [
+            (lambda: page.get_by_label(label, exact=True).first,                                 "label_exact"),
+            (lambda: page.get_by_label(label, exact=False).first,                                "label_fuzzy"),
+            (lambda: page.get_by_placeholder(label).first,                                       "placeholder"),
+            (lambda: page.locator(f'[aria-label*="{label}"]').first,                             "aria_label"),
+            (lambda: page.locator(f'input[name*="{slug}"], input[id*="{slug}"]').first,          "name_id"),
         ]
-        for i, strategy in enumerate(strategies):
+
+        # Reorder by historical win rate
+        if self._stats:
+            key_rank = {k: i for i, k in enumerate(self._stats.sorted_keys("fill_field"))}
+            fill_strategies.sort(key=lambda t: key_rank.get(t[1], 999))
+
+        for strategy_fn, strategy_key in fill_strategies:
+            if self._stats:
+                self._stats.record_tried("fill_field", strategy_key)
             try:
-                loc = strategy()
+                loc = strategy_fn()
                 selectors = self._extract_selectors(loc)
                 if selectors:
                     sel_str = " | ".join(f"{s['type']}={s['value']!r}" for s in selectors)
-                    print(f"           [fill_field strategy {i+1}] element: {sel_str}")
+                    print(f"           [fill_field strategy {strategy_key}] element: {sel_str}")
                 self._last_selectors = selectors
                 loc.fill(value, timeout=timeout)
                 page.keyboard.press("Escape")  # dismiss calendar pickers / dropdowns
                 page.wait_for_timeout(500)
-                return f"filled '{label}' with '{value}' (strategy {i+1})"
+                if self._stats:
+                    self._stats.record_win("fill_field", strategy_key)
+                return f"filled '{label}' with '{value}' ({strategy_key})"
             except Exception as e:
-                print(f"           [fill_field strategy {i+1}] failed: {e}")
+                print(f"           [fill_field strategy {strategy_key}] failed: {e}")
                 self._last_selectors = []
                 continue
 
@@ -874,6 +913,70 @@ class BrowserSession:
             pass
 
         return f"error: could not find element '{element_description}' to hover"
+
+    def download_file(self, element_description: str) -> str:
+        """Click a button/link that triggers a file download and wait for the file.
+
+        Returns a token (e.g. 'downloaded_file_1') that upload_file can use to
+        reference the saved file in a later step.
+        """
+        desc = element_description.rstrip(" *").strip()
+        try:
+            with self._page.expect_download(timeout=30000) as download_info:
+                result = self.click(element_description)
+                if result.startswith("error"):
+                    return result
+
+            download = download_info.value
+            dest_dir = Path(tempfile.mkdtemp())
+            dest = dest_dir / (download.suggested_filename or "download")
+            download.save_as(str(dest))
+
+            # Verify the file is non-empty (readable)
+            if not dest.exists() or dest.stat().st_size == 0:
+                return f"error: download of '{desc}' produced an empty file"
+
+            token = f"downloaded_file_{len(self._downloads) + 1}"
+            self._downloads[token] = dest
+            return (
+                f"downloaded '{download.suggested_filename}' "
+                f"({dest.stat().st_size} bytes) → token: {token}"
+            )
+        except Exception as e:
+            return f"error: download failed for '{desc}': {e}"
+
+    def upload_file(self, field_label: str, file_ref: str) -> str:
+        """Upload a file to a file-input field.
+
+        file_ref can be:
+          - a token returned by download_file (e.g. 'downloaded_file_1')
+          - a path relative to the current working directory (e.g. 'fixtures/sample.xlsx')
+        """
+        label = field_label.rstrip(" *").strip()
+
+        path = self._downloads.get(file_ref) or Path(file_ref)
+        if not path.exists():
+            return f"error: file not found for ref '{file_ref}' (resolved to '{path}')"
+
+        page = self._page
+        strategies = [
+            lambda: page.get_by_label(label, exact=True).first,
+            lambda: page.get_by_label(label, exact=False).first,
+            lambda: page.locator(f'input[type="file"][aria-label*="{label}"]').first,
+            lambda: page.locator('input[type="file"]').first,
+        ]
+        for strategy in strategies:
+            try:
+                loc = strategy()
+                if loc.count() == 0:
+                    continue
+                loc.set_input_files(str(path), timeout=5000)
+                page.wait_for_timeout(500)
+                return f"uploaded '{path.name}' to '{label}'"
+            except Exception:
+                continue
+
+        return f"error: could not find file input for '{field_label}'"
 
     def take_screenshot(self, label: str, output_dir: Path) -> str:
         path = output_dir / f"{label}.png"

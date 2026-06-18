@@ -1,0 +1,131 @@
+steps:
+  f69a7349-edd6-4dde-a781-1a22ad3c00fe:
+    step_id: f69a7349-edd6-4dde-a781-1a22ad3c00fe
+    source_file: extranet_plan
+    recorded_at: '2026-06-18T14:50:05.177407+00:00'
+    run_id: run_5ec341e1
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: http://project.ivalua.com
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully navigated to http://project.ivalua.com which redirected
+          to https://project.ivalua.com/page/prj/index (the Ivalua Extranet Site homepage).
+          The page was read and displays the login/identification form, confirming
+          we are on the correct Ivalua Extranet Site.
+      selectors: []
+      assertions:
+      - /page/prj/index
+      - Homepage
+    step_hash: 0db43036a471
+  8067d41d-5fc7-44a1-b7e8-d64282402d24:
+    step_id: 8067d41d-5fc7-44a1-b7e8-d64282402d24
+    source_file: extranet_plan
+    recorded_at: '2026-06-18T14:50:27.294366+00:00'
+    run_id: run_5ec341e1
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Login
+        value: '{{User}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="idlogin"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/div/div/div/form/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Password
+        value: '{{Password}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="inputPassword"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/div/div/div/form/div/div[2]/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: Sign in
+      selectors:
+      - type: xpath_structural
+        value: /html/body/div/div/div/form/div/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Sign in
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully filled the Login field with 'saurabh.y.jain@accenture.com',
+          filled the Password field with the provided sensitive password, and clicked
+          the Sign in button. The page navigated to https://project.ivalua.com/page/prj/index_extranet
+          (the authenticated homepage), displaying the user's dashboard with their
+          name "Saurabh J." visible in the top navigation, confirming successful authentication.
+      selectors: []
+      assertions:
+      - /page/prj/index_extranet
+      - Homepage
+      - Saurabh J.
+    step_hash: d47c1fa6b845
+  f7665589-0e9d-4472-8c2e-617af70721f1:
+    step_id: f7665589-0e9d-4472-8c2e-617af70721f1
+    source_file: extranet_plan
+    recorded_at: '2026-06-18T14:51:57.089849+00:00'
+    run_id: run_5ec341e1
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Successfully read the page which shows the search results for
+          "R7 PASS 1". The page displays a list of 5 defects/requests that match the
+          search criteria, with their details displayed in a table format including
+          Project, ID, Priority, Module, Short Description, Resolution, Severity,
+          Requestor, Assigned to, and other fields. The search results are shown with
+          "Result: 5 rows" and "Total: 5" displayed on the page.'
+      selectors: []
+      assertions:
+      - /page/prj/req_browse
+      - Requests
+      - R7 PASS 1
+    step_hash: 2dd536196720

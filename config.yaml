@@ -28,5 +28,9 @@ agent:
 
 evidence:
   output_dir: "evidence"
+  # Stable directory for fingerprints and strategy_stats.
+  # Must be on a persistent volume in Docker/Fly.io so data survives restarts
+  # even when YAML files are delivered at runtime via the API content mode.
+  fingerprints_dir: "flows"
   screenshot_on_every_action: false
   screenshot_on_verdict: true

@@ -93,7 +93,7 @@ class TestCondition(BaseModel):
 
 class Flow(BaseModel):
     id: str
-    description: str
+    description: str = ""
     depends_on: list[str] = Field(default_factory=list)  # flow IDs
     test_conditions: list[TestCondition] = Field(default_factory=list)
 

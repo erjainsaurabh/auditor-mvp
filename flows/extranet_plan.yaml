@@ -1,0 +1,48 @@
+flows:
+- id: flow_extranet
+  description: dsdsds
+  test_conditions:
+  - id: tc_069
+    sequence: 1
+    goal: Ivalua extranet
+    execution:
+      navigation: http://project.ivalua.com
+      navigation_mode: fresh
+    steps:
+    - id: f69a7349-edd6-4dde-a781-1a22ad3c00fe
+      sequence: 1
+      description: Go to the Ivalua Extranet Site
+      type: transition
+      expected: ''
+      hints:
+      - navigate('base_url')
+      - read_page()
+    - id: 8067d41d-5fc7-44a1-b7e8-d64282402d24
+      sequence: 2
+      description: Login to the application with
+      type: transition
+      expected: ''
+      data:
+        User: '{{User}}'
+        Password: '{{Password}}'
+      hints:
+      - fill_field('User', '{{User}}')
+      - fill_field('Password', '{{Password}}')
+      - click('Login')
+    - id: 98fcedd0-f53d-4af8-8cdf-4c9d15872a3c
+      sequence: 3
+      description: Search for campaign and select R7 PASS 1
+      type: transition
+      expected: ''
+      hints:
+      - fill_field('Search', 'R7 PASS 1')
+      - press_key('Enter')
+      - read_page()
+      - click('R7 PASS 1')
+    - id: f7665589-0e9d-4472-8c2e-617af70721f1
+      sequence: 4
+      description: down the searched defects.
+      type: transition
+      expected: ''
+      hints:
+      - read_page()

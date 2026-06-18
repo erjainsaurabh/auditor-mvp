@@ -54,6 +54,47 @@ _jobs_lock = Lock()
 # run headless on a machine with enough RAM for multiple Chrome instances.
 _executor = ThreadPoolExecutor(max_workers=1)
 
+
+def _recover_jobs() -> None:
+    """On startup, scan evidence/<run_id>/report.json files and rebuild _jobs.
+
+    This lets the status/report endpoints return correct data after a process
+    restart (e.g. deploy) for any run that already wrote its report to disk.
+    Runs that were still in-progress when the process died will remain missing —
+    those are genuinely unrecoverable without a persistent queue.
+    """
+    import json
+    evidence_dir = Path(__file__).parent / "evidence"
+    if not evidence_dir.exists():
+        return
+    recovered = 0
+    for report_path in sorted(evidence_dir.glob("*/report.json")):
+        run_id = report_path.parent.name
+        if not run_id.startswith("run_") or run_id in _jobs:
+            continue
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            summary = report.get("summary", {})
+            failed   = summary.get("failed", 0)
+            blocked  = summary.get("blocked", 0)
+            verified = summary.get("verified", 0)
+            result = (
+                "passed"  if failed == 0 and blocked == 0 else
+                "failed"  if verified == 0 else
+                "partial"
+            )
+            job = _Job(run_id=run_id, status="done",
+                       result=result, summary=summary, report=report)
+            _jobs[run_id] = job
+            recovered += 1
+        except Exception:
+            pass  # corrupt / incomplete report — skip
+    if recovered:
+        log.info("startup recovery: restored %d completed runs from evidence/", recovered)
+
+
+_recover_jobs()
+
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -62,8 +103,15 @@ app = FastAPI(title="Auditor MVP API", version="1.0.0")
 
 
 class RunRequest(BaseModel):
-    yamls: list[str]
+    # ── File-path mode (local dev, shared filesystem) ────────────────────────
+    yamls: list[str] = []
     data: str | None = None
+    # ── Content mode (distributed / Fargate — no shared filesystem needed) ───
+    # When yaml_contents is provided the server writes them to a per-run temp
+    # directory and uses those paths; file-path fields are ignored.
+    yaml_contents: list[str] = []          # YAML text for each flow file
+    yaml_filenames: list[str] = []         # Logical filenames (e.g. "plan_42.yaml")
+    data_content: str | None = None        # test_data.yaml text
 
 
 class RunResponse(BaseModel):
@@ -136,26 +184,64 @@ def _execute(job: _Job, yaml_paths: list[Path], data_path: Path | None) -> None:
 
 @app.post("/run", response_model=RunResponse, status_code=202)
 def start_run(req: RunRequest) -> RunResponse:
-    """Queue an audit run and return a run_id immediately."""
+    """Queue an audit run and return a run_id immediately.
+
+    Supports two modes:
+    • File-path mode (local dev):   set ``yamls`` / ``data`` to paths relative
+      to the auditor-mvp root directory.
+    • Content mode (distributed):   set ``yaml_contents`` / ``yaml_filenames`` /
+      ``data_content`` with the raw YAML text.  The server writes them to a
+      per-run staging directory so the rest of the pipeline is unchanged.
+    """
     base = Path(__file__).parent
-    yaml_paths = [base / y for y in req.yamls]
-    for p in yaml_paths:
-        if not p.exists():
-            log.warning("POST /run — YAML not found: %s", p)
-            raise HTTPException(status_code=400, detail=f"YAML not found: {p.name}")
-
-    data_path: Path | None = None
-    if req.data:
-        data_path = base / req.data
-        if not data_path.exists():
-            log.warning("POST /run — data file not found: %s", req.data)
-            raise HTTPException(status_code=400, detail=f"Data file not found: {req.data}")
-    elif (base / "test_data.yaml").exists():
-        data_path = base / "test_data.yaml"
-
     run_id = f"run_{uuid.uuid4().hex[:8]}"
+
+    # ── Content mode ─────────────────────────────────────────────────────────
+    if req.yaml_contents:
+        if len(req.yaml_contents) != len(req.yaml_filenames):
+            raise HTTPException(
+                status_code=400,
+                detail="yaml_contents and yaml_filenames must have the same length",
+            )
+        staging_dir = base / "evidence" / run_id / "staging"
+        staging_dir.mkdir(parents=True, exist_ok=True)
+
+        yaml_paths: list[Path] = []
+        for filename, content in zip(req.yaml_filenames, req.yaml_contents):
+            p = staging_dir / filename
+            p.write_text(content, encoding="utf-8")
+            yaml_paths.append(p)
+            log.info("POST /run — wrote staging YAML: %s (%d chars)", p.name, len(content))
+
+        data_path: Path | None = None
+        if req.data_content:
+            data_path = staging_dir / "test_data.yaml"
+            data_path.write_text(req.data_content, encoding="utf-8")
+            log.info("POST /run — wrote staging test_data.yaml (%d chars)", len(req.data_content))
+        elif (base / "test_data.yaml").exists():
+            data_path = base / "test_data.yaml"
+
+    # ── File-path mode ────────────────────────────────────────────────────────
+    else:
+        if not req.yamls:
+            raise HTTPException(status_code=400, detail="Provide either yamls (file paths) or yaml_contents")
+        yaml_paths = [base / y for y in req.yamls]
+        for p in yaml_paths:
+            if not p.exists():
+                log.warning("POST /run — YAML not found: %s", p)
+                raise HTTPException(status_code=400, detail=f"YAML not found: {p.name}")
+
+        data_path = None
+        if req.data:
+            data_path = base / req.data
+            if not data_path.exists():
+                log.warning("POST /run — data file not found: %s", req.data)
+                raise HTTPException(status_code=400, detail=f"Data file not found: {req.data}")
+        elif (base / "test_data.yaml").exists():
+            data_path = base / "test_data.yaml"
+
     job = _Job(run_id=run_id)
-    log.info("POST /run — queued %s (yamls=%s, data=%s)", run_id, req.yamls, req.data)
+    log.info("POST /run — queued %s (yamls=%s, data=%s)", run_id, [p.name for p in yaml_paths], data_path)
 
     with _jobs_lock:
         _jobs[run_id] = job

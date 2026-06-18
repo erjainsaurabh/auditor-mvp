@@ -1,11 +1,14 @@
 # secrets — never in the image
 .env
 
-# runtime output
+# runtime output — not needed in image
 evidence/
 report.json
-*.fingerprints.yaml
-*.fingerprints.yaml.bak
+
+# flows/ is NOT copied into the image at all.
+# YAMLs are delivered at runtime via the API.
+# Fingerprints and strategy_stats live on the persistent volume.
+flows/
 
 # Python artifacts
 __pycache__/

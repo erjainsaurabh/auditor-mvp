@@ -24,6 +24,7 @@ from auditor.graph import build_condition_graph, cascade_condition_failure, cond
 from auditor.llm_client import LLMClient
 from auditor.loader import ConditionStatus, load_flows
 from auditor.report import print_summary, write_report
+from auditor.strategy_stats import StrategyStats
 from auditor.tools import BrowserSession
 
 
@@ -64,6 +65,14 @@ def run_audit(
     flow_file = load_flows(*yaml_paths, test_data_path=data_path)
     run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
     output_dir = Path(config["evidence"]["output_dir"])
+
+    # Let the flow YAML's config section override config.yaml — this is how
+    # the TestManagement app injects the environment base_url into each run.
+    flow_base_url = flow_file.config.get("base_url") if flow_file.config else None
+    if flow_base_url:
+        log.info("base_url overridden by flow YAML: %s", flow_base_url)
+        config["app"]["base_url"] = flow_base_url
+
     log.info(
         "run_id=%s  flows=%d  test_conditions=%d  steps=%d",
         run_id,
@@ -92,20 +101,40 @@ def run_audit(
         platform_guidance = ""
     llm = LLMClient(config["llm"], platform_guidance=platform_guidance)
 
+    # Fingerprints and strategy stats always write to a stable directory so
+    # they persist across runs even when YAML content is delivered at runtime
+    # (content mode) and the YAML lives in a per-run staging directory.
+    # In Fly.io this resolves to /app/flows (the persistent volume).
+    # In local dev it resolves to flows/ (same behaviour as before).
+    fingerprints_dir = Path(
+        config.get("evidence", {}).get("fingerprints_dir", "flows")
+    )
+    fingerprints_dir.mkdir(parents=True, exist_ok=True)
+
     per_yaml_stores: list[tuple[FingerprintStore, set[str]]] = []
     for yp in yaml_paths:
-        fp_path = yp.with_name(f"{yp.stem}.fingerprints.yaml")
+        fp_path = fingerprints_dir / f"{yp.stem}.fingerprints.yaml"
         store = FingerprintStore(fp_path, source_file=yp.stem)
         from auditor.loader import load_flows as _lf
         yf = _lf(yp)
         step_ids = {s.id for s in yf.all_steps}
         per_yaml_stores.append((store, step_ids))
-        console.print(f"  [dim]fingerprints: {fp_path.name} ({len(step_ids)} steps)[/dim]")
+        console.print(f"  [dim]fingerprints: {fp_path} ({len(step_ids)} steps)[/dim]")
 
     fp_router = FingerprintRouter(per_yaml_stores)
+
+    # Strategy stats live in the same stable directory as fingerprints.
+    stats_path = fingerprints_dir / config.get("agent", {}).get(
+        "strategy_stats_file", "strategy_stats.yaml"
+    )
+    platform = config["app"].get("platform", "generic").lower()
+    stats = StrategyStats(stats_path, platform=platform)
+    console.print(f"  [dim]strategy stats: {stats_path} (platform={platform})[/dim]")
+
     all_evidence: list[dict] = []
 
     with _make_session(config["app"]) as session:
+        session._stats = stats
         session_data: dict[str, str] = {}
 
         for tc_id in order:
@@ -139,6 +168,12 @@ def run_audit(
                 mark_conditions_blocked(flow_file.flows, set(blocked))
                 if blocked:
                     console.print(f"  [dim]cascading block to test conditions: {', '.join(blocked)}[/dim]\n")
+
+    # Persist stats — force=True ensures the file is created even when all
+    # steps used fingerprint replay (no live strategy calls were made).
+    stats.save(force=True)
+    console.print(f"  [dim]strategy stats saved → {stats_path}[/dim]")
+    log.info("strategy stats saved to %s", stats_path)
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     log.info("writing report to %s", report_path)

@@ -1,0 +1,132 @@
+config:
+  base_url: https://env01.ivalua.us/buyer/nyc/rctevol2/s3sr2/page.aspx
+flows:
+- id: flow_second_attempt
+  description: Second Attempt
+  test_conditions:
+  - id: tc_001
+    sequence: 1
+    goal: Log in with valid credentials and confirm home page loads
+    execution:
+      navigation: /
+      navigation_mode: fresh
+    steps:
+    - id: 7qrk5ek
+      sequence: 1
+      description: Login succeeds and the home page loads with main navigation
+      type: transition
+      expected: the home page loads showing a main navigation menu with items such as Requisition, Contracts, Vendors, or
+        similar
+      data:
+        app_password: '{{app_password}}'
+        app_username: '{{app_username}}'
+  - id: tc_009
+    sequence: 2
+    goal: Creation of POCR v2
+    execution:
+      navigation: /en/ord/order_browse/contract_budget
+      navigation_mode: fresh
+    steps:
+    - id: ae3433ee-ce51-471d-9f4e-2fc54b9b314e
+      sequence: 1
+      description: Open the advanced search panel on the left side of Browse Contract Budgets, set Status filter to Active,
+        and click the Search button to load results.
+      type: existence
+      expected: The results list shows one or more PO records with Status Active
+      hints:
+      - If the Status filter field is not visible, click 'Open advanced search panel' first to reveal the left panel filters
+      - Use select_option(field_label='Status', option_value='Active') to set the Status filter
+      - After select_option returns successfully, immediately call click('Search') to submit — do NOT call read_page first
+      - Once results appear in the table, call verify_claim — do NOT open any record
+    - id: b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891
+      sequence: 2
+      description: Find the PO record matching the given PO ID in the results list and open its overview page.
+      type: behavioral
+      expected: The overview page for the PO matching the given ID is open
+      data:
+        base_budget: '{{base_budget}}'
+      depends_on:
+      - ae3433ee-ce51-471d-9f4e-2fc54b9b314e
+      hints:
+      - The results table is already loaded — do NOT fill any fields, do NOT search again
+      - 'Construct the full PO ID: prepend ''PO0'' to base_budget (e.g. base_budget=''12345'' → PO ID=''PO012345'')'
+      - Call click('POXXXXX') — even if the PO ID is not visible in the truncated table view, the click mechanism will find
+        it in the full DOM
+      - Verify the overview page has loaded showing the PO details
+    - id: 7ba6d9b6-c66b-41f4-8edc-59c228e1dfeb
+      sequence: 3
+      description: Budget Preparer validates 'Create PO Change Request' button on the Overview page
+      type: behavioral
+      expected: '''Create PO Change Request'' button should be displayed'
+      depends_on:
+      - b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891
+      hints:
+      - read_page() to confirm the 'Create PO Change Request' button is visible on the Overview page
+    - id: 1c535cf7-5ce0-449b-9a1c-f1d228cf459c
+      sequence: 4
+      description: Budget Preparer clicks on 'Create PO Change Request' button on the Overview page
+      type: behavioral
+      expected: 'Select Purchase Change Request Type Popup will be opened and will display the following fields: FY Budget
+        (read-only), Select the PO Change Request Type dropdown, Submit button, Cancel button'
+      depends_on:
+      - 7ba6d9b6-c66b-41f4-8edc-59c228e1dfeb
+      hints:
+      - click('Create PO Change Request')
+      - read_page() to confirm the popup shows FY Budget (read-only), the type dropdown, and Submit/Cancel buttons
+    - id: 73494eea-d78c-4dc7-95ad-fe479e64847a
+      sequence: 5
+      description: Budget Preparer selects 'Budget and Encumbrance Change' option in the 'Select the PO Change Request Type'
+        field in PO Change Request Pop-up
+      type: transition
+      expected: '''Budget and Encumbrance Change'' option should be displayed and selected'
+      depends_on:
+      - 1c535cf7-5ce0-449b-9a1c-f1d228cf459c
+      hints:
+      - select_option(field_label='Select the PO Change Request Type', option_value='Budget and Encumbrance Change')
+      - read_page() to confirm 'Budget and Encumbrance Change' is the selected value
+    - id: 0f38904a-214f-4ce2-817e-b7724a5714fc
+      sequence: 6
+      description: Budget Preparer clicks on 'Submit' button in the 'Select the PO Change Request Type' field in PO Change
+        Request Pop-up
+      type: transition
+      expected: Budget and Encumbrance Change POCR is launched
+      depends_on:
+      - 73494eea-d78c-4dc7-95ad-fe479e64847a
+      hints:
+      - click('Submit')
+      - read_page() to confirm the Budget and Encumbrance Change POCR form has launched
+    - id: 5ead2d11-68af-415d-88f9-90781d9b622a
+      sequence: 7
+      description: Click Save without filling any fields
+      type: transition
+      expected: Validation errors appear for all required fields and the form is not submitted
+      depends_on:
+      - 0f38904a-214f-4ce2-817e-b7724a5714fc
+      hints:
+      - Do NOT fill any fields — click Save directly to trigger validation
+      - click('Save')
+      - read_page() to confirm validation error messages appear for required fields and the form was not submitted
+    - id: a28aa781
+      sequence: 8
+      description: Go to Change Request Tab present on the Left pane and fill "Reason for Change Request" field available
+        on that page
+      type: transition
+      expected: ''
+      data:
+        change_reason: '{{change_reason}}'
+      depends_on:
+      - 5ead2d11-68af-415d-88f9-90781d9b622a
+      hints:
+      - click('Change Request')
+      - fill_field('Reason for Change Request', '{{change_reason}}')
+    - id: 1207d7f8
+      sequence: 9
+      description: Click "Complete Setup" button to launch the workflow
+      type: transition
+      expected: No Validation errors appear
+      depends_on:
+      - a28aa781
+      hints:
+      - Do NOT fill any fields — click Save directly to trigger validation
+      - click('Save')
+      - read_page() to confirm validation error messages appear for required fields and the form was not submitted

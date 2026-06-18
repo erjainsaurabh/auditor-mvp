@@ -152,33 +152,76 @@ def is_dynamic_assertion(s: str) -> bool:
     return bool(_DYNAMIC_ID_RE.search(s))
 
 
+def _snapshot_url_path(snapshot: str) -> str:
+    """Return the URL path from the first line of a read_page snapshot, or ''."""
+    for line in snapshot.splitlines():
+        if line.startswith("url: "):
+            url = line[5:].strip()
+            try:
+                from urllib.parse import urlparse
+                path = urlparse(url).path.rstrip("/")
+                # Skip paths that contain dynamic IDs (e.g. /order_manage/74770)
+                if path and not _DYNAMIC_ID_RE.search(path):
+                    return path
+            except Exception:
+                pass
+            break
+    return ""
+
+
+def _snapshot_title(snapshot: str) -> str:
+    """Return the page title (without app suffix) from a read_page snapshot, or ''."""
+    for line in snapshot.splitlines():
+        if line.startswith("title: "):
+            title = line[7:].strip()
+            # Strip ": AppName" suffix (e.g. "Browse Contract Budgets: PASSPort")
+            if ": " in title:
+                title = title.split(": ")[0].strip()
+            if title and not _DYNAMIC_ID_RE.search(title) and len(title) >= 5:
+                return title
+            break
+    return ""
+
+
 def extract_assertions(reasoning: str, snapshot: str) -> list[str]:
-    """Pull quoted terms from LLM reasoning that also appear in the page snapshot.
+    """Pull quoted terms from LLM reasoning that also appear in the page snapshot,
+    plus structural assertions (URL path, page title) that verify the replay is
+    on the correct page.
 
-    Matches both double-quoted ("Foo") and single-quoted ('Foo') strings so that
-    LLM phrasing style doesn't cause empty assertion lists.  Only terms that
-    actually appear in the current snapshot are stored — this keeps assertions
-    live and avoids storing stale strings.
+    Structural assertions are prepended so they are always stored even if the
+    LLM's reasoning contains few or no quoted terms.  Quoted terms from reasoning
+    are appended after to capture step-specific content (e.g. selected values).
 
-    Dynamic IDs (strings containing 5+ consecutive digits — record numbers,
-    ticket IDs, etc.) are filtered out at recording time so fingerprints stay
-    stable across runs that create different records.
+    Dynamic IDs (strings containing 5+ consecutive digits) are filtered so
+    fingerprints stay stable across runs that create different records.
     """
-    # Collect candidates from both quote styles; deduplicate by lower-case value
+    result: list[str] = []
+    seen: set[str] = set()
+    snapshot_lower = snapshot.lower()
+
+    def _add(candidate: str) -> None:
+        if is_dynamic_assertion(candidate):
+            return
+        c_lower = candidate.lower()
+        if c_lower not in seen and c_lower in snapshot_lower:
+            seen.add(c_lower)
+            result.append(candidate)
+
+    # --- Structural assertions (page identity) — always attempted first ---
+    url_path = _snapshot_url_path(snapshot)
+    if url_path:
+        _add(url_path)
+
+    page_title = _snapshot_title(snapshot)
+    if page_title:
+        _add(page_title)
+
+    # --- Content assertions from LLM reasoning ---
     double_quoted = re.findall(r'"([^"]{3,60})"', reasoning)
     single_quoted = re.findall(r"'([^']{3,60})'", reasoning)
-    candidates = double_quoted + single_quoted
-
-    snapshot_lower = snapshot.lower()
-    seen: set[str] = set()
-    result: list[str] = []
-    for q in candidates:
-        if is_dynamic_assertion(q):
-            continue          # skip run-specific IDs — they'll never match next run
-        q_lower = q.lower()
-        if q_lower not in seen and q_lower in snapshot_lower:
-            seen.add(q_lower)
-            result.append(q)
-        if len(result) >= 6:   # raised from 4 — single+double can give more candidates
+    for q in double_quoted + single_quoted:
+        _add(q)
+        if len(result) >= 8:
             break
+
     return result

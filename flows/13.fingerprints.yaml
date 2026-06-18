@@ -1,0 +1,436 @@
+steps:
+  7qrk5ek:
+    step_id: 7qrk5ek
+    source_file: '13'
+    recorded_at: '2026-05-19T10:20:18.572092+00:00'
+    run_id: run_1b522df2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: take_screenshot
+      args:
+        label: Home page with main navigation menu loaded
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The home page has loaded successfully after navigation, showing
+          a fully functional main navigation menu with items including Requisition,
+          Contracts, Vendors, Catalog, Sourcing, Ordering, Receiving, Financials,
+          Reporting, Rules, and Support. The user is authenticated and logged in (profile
+          shows "DOC F."). The expected outcome of a successful login with the home
+          page displaying a main navigation menu is confirmed.
+      selectors: []
+      assertions:
+      - /buyer/nyc/rctevol2/s3sr2/page.aspx/en/buy/homepage/buy
+      - Home Page
+      - DOC F.
+    step_hash: 843473e6fd22
+  ae3433ee-ce51-471d-9f4e-2fc54b9b314e:
+    step_id: ae3433ee-ce51-471d-9f4e-2fc54b9b314e
+    source_file: '13'
+    recorded_at: '2026-05-19T10:20:38.752890+00:00'
+    run_id: run_1b522df2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: /en/ord/order_browse/contract_budget
+      selectors: []
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Open advanced search panel
+      selectors:
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/div/div/button[3]/span
+        successes: 1
+        failures: 0
+      - type: text
+        value: Open advanced search panel
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: select_option
+      args:
+        field_label: Status
+        option_value: Active
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_ddlStatus_search"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/div/div[2]/div/div[2]/div/div/div/div/div/div/div/div[2]/div/div[2]/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: Search
+      selectors:
+      - type: css
+        value: '[name*="cmdSearchBtn"][name*="FilterBar"]'
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Successfully opened the advanced search panel, set the Status
+          filter to "Active" using select_option, clicked the Search button in the
+          filter panel, and the results loaded showing multiple PO records with Status
+          = "Active". The page displays a results table with numerous PO IDs (PO074879,
+          POCR074865, PO074788, PO074770, PO074762, PO074761, PO074759, PO074757,
+          PO074756, PO074755, PO074754, PO074753, PO074752, PO074751, PO074750, etc.)
+          all showing "Active" status in the Status column. The filter chip "Status:
+          Active" is visible in the Filters section confirming the filter was applied
+          successfully.'
+      selectors: []
+      assertions:
+      - /buyer/nyc/rctevol2/s3sr2/page.aspx/en/ord/order_browse/contract_budget
+      - Browse Contract Budgets
+      - Active
+    step_hash: fd84be005811
+  b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891:
+    step_id: b2f1a3cc-8d4e-4f91-bc72-e3a1d5c60891
+    source_file: '13'
+    recorded_at: '2026-05-19T10:08:44.992801+00:00'
+    run_id: run_41921e9b
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: PO074770
+      selectors:
+      - type: text
+        value: PO074770
+        successes: 2
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The PO record matching the given ID (base_budget=74770, full ID=PO074770)
+          was successfully found in the results list and opened. The overview page
+          is now displayed showing the complete PO details including the heading "PO:
+          PO074770 - 12524P0084-4DD_MWBE_POD3_Pranali-DoNot_Use-Revisit - "D" YARD
+          INTERNATIONAL, INC (Active)", the Overview tab is selected, and all the
+          order header information is visible. The expected outcome has been fully
+          satisfied.'
+      selectors: []
+      assertions:
+      - /buyer/nyc/rctevol2/s3sr2/page.aspx/en/ord/order_browse/contract_budget
+      - ' YARD INTERNATIONAL, INC (Active)'
+    step_hash: e19b707b08bd
+  7ba6d9b6-c66b-41f4-8edc-59c228e1dfeb:
+    step_id: 7ba6d9b6-c66b-41f4-8edc-59c228e1dfeb
+    source_file: '13'
+    recorded_at: '2026-05-19T10:08:49.444926+00:00'
+    run_id: run_41921e9b
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The 'Create PO Change Request' button is clearly visible and displayed
+          on the Overview page for PO074770. It appears in the main content area as
+          a link with the URL /buyer/nyc/rctevol2/s3sr2/page.aspx/en/ord/order_crpop_manage/74770.
+          The button is accessible to the Budget Preparer and positioned alongside
+          other action buttons such as "Save" and "Create Invoice". The expected outcome
+          has been fully satisfied.
+      selectors: []
+      assertions:
+      - Save
+      - Create Invoice
+      - Create PO Change Request
+    step_hash: bf123b9df4ee
+  1c535cf7-5ce0-449b-9a1c-f1d228cf459c:
+    step_id: 1c535cf7-5ce0-449b-9a1c-f1d228cf459c
+    source_file: '13'
+    recorded_at: '2026-05-19T10:08:55.858749+00:00'
+    run_id: run_41921e9b
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Create PO Change Request
+      selectors:
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/div/table/tbody/tr/td[4]/div/table/tbody/tr/td[2]/a/span
+        successes: 2
+        failures: 0
+      - type: text
+        value: Create PO Change Request
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The ''Create PO Change Request'' button was clicked and the "Select
+          Purchase Change Request Type" popup has been successfully opened. The popup
+          displays all the required fields: (1) FY Budget as a disabled/read-only
+          combobox showing "2026 - City of New York (Legal)", (2) "Select the PO Change
+          Request Type" dropdown field marked as mandatory, (3) Submit button (currently
+          disabled pending selection), and (4) Cancel button. The popup also displays
+          informational messages about ongoing POCR requests. All expected elements
+          are present and visible on the popup.'
+      selectors: []
+      assertions:
+      - Select Purchase Change Request Type
+      - 2026 - City of New York (Legal)
+      - Select the PO Change Request Type
+    step_hash: 6f5522a6aaf8
+  73494eea-d78c-4dc7-95ad-fe479e64847a:
+    step_id: 73494eea-d78c-4dc7-95ad-fe479e64847a
+    source_file: '13'
+    recorded_at: '2026-05-19T10:09:02.711830+00:00'
+    run_id: run_41921e9b
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: select_option
+      args:
+        field_label: Select the PO Change Request Type
+        option_value: Budget and Encumbrance Change
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_selPocrCodeCr_search"]
+        successes: 2
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/div/table/tbody/tr/td/div/table/tbody/tr[2]/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: '''Budget and Encumbrance Change'' option was successfully selected
+          in the ''Select the PO Change Request Type'' field. The page confirms the
+          selection with: (1) the status message "Both Budget and Encumbrance Change
+          added to selection" displayed at the top, (2) the text "Both Budget and
+          Encumbrance Change" shown below the dropdown field, and (3) a "Delete the
+          value." button appearing next to the selected value. The selection is clearly
+          visible and confirmed on the popup.'
+      selectors: []
+      assertions:
+      - Select Purchase Change Request Type
+      - Both Budget and Encumbrance Change added to selection
+      - Both Budget and Encumbrance Change
+      - Delete the value.
+      - Budget and Encumbrance Change
+      - Select the PO Change Request Type
+    step_hash: d4ff9aec3ae1
+  0f38904a-214f-4ce2-817e-b7724a5714fc:
+    step_id: 0f38904a-214f-4ce2-817e-b7724a5714fc
+    source_file: '13'
+    recorded_at: '2026-05-19T10:21:23.864657+00:00'
+    run_id: run_1b522df2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Budget and Encumbrance Change POCR form has been successfully
+          launched. The page now displays a new POCR document (POCR074893) with the
+          title indicating it's a "Budget and Encumbrance Change" type PO Change Request.
+          The form shows the Overview tab with all the expected fields including Fiscal
+          Year, Status (Initialized), Award Amount, Contract details, Vendor information,
+          and other PO change request-related fields. The document is in "Initialized"
+          status which is the expected initial state for a newly created POCR.
+      selectors: []
+      assertions:
+      - Initialized
+    step_hash: 71b8e5cd1d1e
+  5ead2d11-68af-415d-88f9-90781d9b622a:
+    step_id: 5ead2d11-68af-415d-88f9-90781d9b622a
+    source_file: '13'
+    recorded_at: '2026-05-19T10:09:44.289043+00:00'
+    run_id: run_41921e9b
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Save
+      selectors:
+      - type: xpath
+        value: //*[@id="proxyActionBar_x__cmdEnd"]
+        successes: 2
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div/div/div/div/div/div/table/tbody/tr/td[2]/div/table/tbody/tr/td/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Save and Close
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: When the Save button was clicked without filling any required fields,
+          validation errors appeared as expected. A blocking error alert is displayed
+          stating "Reason for Change Request must have a value", indicating that this
+          is a required field. An additional info message appears stating that "Fields
+          marked by an asterisk * are mandatory" and the expected date format. The
+          form was not submitted - the page remains at the same URL with the POCR
+          status still showing "Initialized". The expected outcome has been fully
+          satisfied.
+      selectors: []
+      assertions:
+      - Reason for Change Request must have a value
+      - Fields marked by an asterisk * are mandatory
+      - Initialized
+    step_hash: 4d85affeb384
+  a28aa781:
+    step_id: a28aa781
+    source_file: '13'
+    recorded_at: '2026-05-19T10:10:02.249518+00:00'
+    run_id: run_41921e9b
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Change Request
+      selectors:
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/div/div[2]/nav/ul/li[3]/span
+        successes: 2
+        failures: 0
+      - type: text
+        value: Change Request
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Reason for Change Request
+        value: '{{change_reason}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="body_x_tabc_change_req_prxchange_req_x_txtOrdCrReason"]
+        successes: 2
+        failures: 0
+      - type: xpath_structural
+        value: /html/body/form/div[3]/div/main/div/div[2]/div[4]/div/table/tbody/tr/td/div/div[3]/div/div/table/tbody/tr/td/div/div/div[2]/table/tbody/tr/td/div/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Change Request tab was successfully clicked and is now selected
+          (as shown in the secondary navigation). The "Reason for Change Request"
+          field on the Change Request page has been successfully filled with the exact
+          value "Automation Testing" as specified in the test data. The field is clearly
+          visible in the tabpanel with the label "Reason for Change Request *" (indicating
+          it is a required field), and the textbox now contains the entered value.
+          The expected outcome has been fully satisfied.
+      selectors: []
+      assertions:
+      - Reason for Change Request
+      - Automation Testing
+      - Reason for Change Request *
+    step_hash: 25cdd248e04e
+  1207d7f8:
+    step_id: 1207d7f8
+    source_file: '13'
+    recorded_at: '2026-05-19T10:21:58.222853+00:00'
+    run_id: run_1b522df2
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: read_page
+      args: {}
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'The workflow has been successfully launched without validation
+          errors. The page displays success and validation messages: "Success Data
+          has been saved" and "Info Validated successfully". The POCR document status
+          has changed from "Initialized" to "In Progress", confirming that the Complete
+          Setup action was executed and the workflow has been launched. The Change
+          Request tab shows the previously filled "Reason for Change Request" field
+          with the value "Automation Testing", and all required fields appear to have
+          been validated successfully.'
+      selectors: []
+      assertions:
+      - Success Data has been saved
+      - Info Validated successfully
+      - Initialized
+      - In Progress
+      - Reason for Change Request
+      - Automation Testing
+    step_hash: 649dc6c256f9
