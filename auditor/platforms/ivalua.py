@@ -599,6 +599,136 @@ class IvaluaBrowserSession(BrowserSession):
         return None
 
     # ------------------------------------------------------------------
+    # select_filter — Ivalua unlabeled combobox + searchbox pattern
+    # ------------------------------------------------------------------
+
+    def select_filter(self, filter_label: str, option_value: str) -> str:
+        """Select a value in an Ivalua filter combobox identified by a nearby text label.
+
+        Handles the pattern seen on browse list filter panels where a plain text
+        node ("Campaign", "Module", "Author", etc.) sits above an unlabeled
+        combobox containing a searchbox. These comboboxes have no aria-label and
+        cannot be found by fill_field / select_option / get_field_options.
+
+        Strategy:
+          1. Walk all visible text nodes to find the one matching filter_label.
+          2. Find the next sibling combobox element in the DOM.
+          3. Click the searchbox inside it to open the dropdown.
+          4. Type the value to trigger the XHR autocomplete search.
+          5. Click the matching item from the dropdown results.
+          6. Press Escape to close the dropdown cleanly.
+        """
+        page = self._page
+        label_clean = filter_label.strip()
+        js_label = label_clean.replace("\\", "\\\\").replace('"', '\\"')
+        js_value = option_value.replace("\\", "\\\\").replace('"', '\\"')
+
+        try:
+            # Step 1-3: locate the searchbox inside the combobox that follows
+            # the matching text label node.
+            result = page.evaluate(f"""() => {{
+                const label = "{js_label}".toLowerCase();
+
+                // Walk all text nodes — the label is a bare text node or
+                // a <text> / <span> with no role. Check all elements whose
+                // textContent (trimmed) exactly matches the label.
+                const allEls = Array.from(document.querySelectorAll('*'));
+                let labelEl = null;
+                for (const el of allEls) {{
+                    // Only consider leaf-ish nodes (not wrappers containing many children)
+                    const direct = el.childNodes.length <= 3
+                        && el.textContent.trim().toLowerCase() === label;
+                    if (direct) {{
+                        labelEl = el;
+                        break;
+                    }}
+                }}
+                if (!labelEl) return {{found: false, reason: 'label element not found for: {js_label}'}};
+
+                // Step 2: find the next combobox sibling or nearby combobox.
+                // Ivalua renders: <text>Campaign</text> <combobox><list><searchbox></combobox>
+                // Try next element sibling first, then parent's next sibling subtree.
+                let combobox = null;
+                let el = labelEl.nextElementSibling;
+                while (el) {{
+                    if (el.getAttribute('role') === 'combobox' || el.tagName === 'SELECT') {{
+                        combobox = el; break;
+                    }}
+                    const cb = el.querySelector('[role="combobox"], select');
+                    if (cb) {{ combobox = cb; break; }}
+                    el = el.nextElementSibling;
+                }}
+                if (!combobox) {{
+                    // Try parent's children after labelEl
+                    const parent = labelEl.parentElement;
+                    if (parent) {{
+                        let found = false;
+                        for (const child of parent.children) {{
+                            if (found) {{
+                                if (child.getAttribute('role') === 'combobox') {{ combobox = child; break; }}
+                                const cb = child.querySelector('[role="combobox"]');
+                                if (cb) {{ combobox = cb; break; }}
+                            }}
+                            if (child === labelEl || child.contains(labelEl)) found = true;
+                        }}
+                    }}
+                }}
+                if (!combobox) return {{found: false, reason: 'no combobox after label'}};
+
+                // Step 3: find the searchbox inside the combobox
+                const searchbox = combobox.querySelector(
+                    '[role="searchbox"], input[type="search"], input[type="text"], input'
+                );
+                if (!searchbox) return {{found: false, reason: 'no searchbox inside combobox'}};
+
+                const id = searchbox.id || '';
+                const name = searchbox.getAttribute('name') || '';
+                return {{found: true, id, name}};
+            }}""")
+
+            if not result or not result.get("found"):
+                reason = result.get("reason", "unknown") if result else "js error"
+                print(f"           [select-filter] not found: {reason}")
+                return f"error: could not find filter '{filter_label}': {reason}"
+
+            inp_id = result.get("id")
+            inp_name = result.get("name")
+            print(f"           [select-filter] found searchbox id={inp_id!r} name={inp_name!r}")
+
+            # Step 4: click to open, type to search
+            if inp_id:
+                loc = page.locator(f"#{inp_id}").first
+            elif inp_name:
+                loc = page.locator(f'input[name="{inp_name}"]').first
+            else:
+                return f"error: searchbox for '{filter_label}' has no id or name"
+
+            loc.click(timeout=3000)
+            page.wait_for_timeout(200)
+            page.keyboard.press("Control+a")
+            page.wait_for_timeout(50)
+            loc.press_sequentially(option_value, delay=80)
+
+            # Step 5: wait for autocomplete results and click the matching item
+            clicked = self._click_autocomplete_item(option_value)
+
+            # Step 6: dismiss dropdown
+            try:
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(400)
+            except Exception:
+                pass
+
+            self._last_selectors = self._extract_selectors(loc)
+            if clicked:
+                return f"selected '{clicked}' in filter '{filter_label}'"
+            return f"typed '{option_value}' in filter '{filter_label}' — item may not have appeared in dropdown"
+
+        except Exception as e:
+            print(f"           [select-filter] failed: {e}")
+            return f"error: select_filter failed for '{filter_label}': {e}"
+
+    # ------------------------------------------------------------------
     # select_option override — dismiss open dropdown after selection
     # ------------------------------------------------------------------
 

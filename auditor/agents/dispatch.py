@@ -84,6 +84,12 @@ def dispatch(
                 session._last_interacted_label = args["field_label"].rstrip(" *").strip()
             return result
 
+        case "select_filter":
+            result = session.select_filter(args["filter_label"], args["option_value"])
+            if not result.startswith("error"):
+                session._last_interacted_label = args["filter_label"].rstrip(" *").strip()
+            return result
+
         case "download_file":
             result = session.download_file(args["element_description"])
             console.print(f"           [dim]download: {result}[/dim]")

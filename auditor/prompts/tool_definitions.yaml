@@ -21,7 +21,7 @@
 - type: function
   function:
     name: click
-    description: "Click an element identified by its visible text"
+    description: "Click an element identified by its visible text. Do NOT use this for buttons that trigger a file download (Excel, CSV, PDF) — use download_file instead."
     parameters:
       type: object
       properties:
@@ -80,7 +80,7 @@
 - type: function
   function:
     name: select_option
-    description: "Select a value in a dropdown, <select>, or combobox field. Use this instead of click/fill_field when the aria snapshot shows role=combobox or role=listbox."
+    description: "Select a value in a dropdown, <select>, or combobox field that has an aria-label. Use this instead of click/fill_field when the aria snapshot shows a named combobox (e.g. combobox \"Status\"). For unlabeled comboboxes identified only by a nearby text heading, use select_filter instead."
     parameters:
       type: object
       properties:
@@ -92,6 +92,23 @@
           description: "The option text or value to select"
       required:
         - field_label
+        - option_value
+
+- type: function
+  function:
+    name: select_filter
+    description: "Select a value in an Ivalua filter panel combobox that has NO aria-label — identified only by a nearby text label (e.g. 'Campaign', 'Module', 'Author', 'Assigned to'). Use this when the aria snapshot shows: text: Campaign / combobox: / list: / listitem: / searchbox \"--\". Pass the visible label text and the value to search for."
+    parameters:
+      type: object
+      properties:
+        filter_label:
+          type: string
+          description: "The visible text label above the combobox (e.g. 'Campaign', 'Module', 'Author')"
+        option_value:
+          type: string
+          description: "The value to search for and select (e.g. 'R7 - NYC Accenture SIT: PASS 1')"
+      required:
+        - filter_label
         - option_value
 
 - type: function
@@ -122,7 +139,7 @@
 - type: function
   function:
     name: download_file
-    description: "Click a button or link that triggers a file download (Excel, CSV, PDF) and wait for the download to complete. Returns a token (e.g. 'downloaded_file_1') that upload_file can use to reference the file in a later step."
+    description: "REQUIRED for any button or link that triggers a file download (Excel extract, Export, CSV, PDF, Generate Report). Do NOT use click for these — use this tool instead. Intercepts the browser download event and saves the file as evidence. Returns a token (e.g. 'downloaded_file_1') confirming the file name and size."
     parameters:
       type: object
       properties:

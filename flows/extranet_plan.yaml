@@ -21,7 +21,7 @@ flows:
       sequence: 2
       description: Login to the application with
       type: transition
-      expected: ''
+      expected: extranet home page should be displayed
       data:
         User: '{{User}}'
         Password: '{{Password}}'
@@ -29,20 +29,29 @@ flows:
       - fill_field('User', '{{User}}')
       - fill_field('Password', '{{Password}}')
       - click('Login')
-    - id: 98fcedd0-f53d-4af8-8cdf-4c9d15872a3c
+    - id: 29748b9a
       sequence: 3
-      description: Search for campaign and select R7 PASS 1
+      description: go to the top navigation and go for requests and select requests from the dropdown
       type: transition
-      expected: ''
-      hints:
-      - fill_field('Search', 'R7 PASS 1')
-      - press_key('Enter')
-      - read_page()
-      - click('R7 PASS 1')
-    - id: f7665589-0e9d-4472-8c2e-617af70721f1
+      expected: defects/requests should be visible
+    - id: 98fcedd0-f53d-4af8-8cdf-4c9d15872a3c
       sequence: 4
-      description: down the searched defects.
+      description: 'Search for campaign and select for two campaigns from the list '
       type: transition
       expected: ''
+      data:
+        campaign1: '{{campaign1}}'
+        campaign2: '{{campaign2}}'
       hints:
+      - look for "Campaign" and its associated dropdown
+      - click('{{campaign1}}')
+      - click('{{campaign2}}')
+    - id: f7665589-0e9d-4472-8c2e-617af70721f1
+      sequence: 5
+      description: looks for excel extract button to download all the requests.
+      type: transition
+      expected: make sure that new file is generated with the defects.
+      hints:
+      - read_page()
+      - click('Excel Extract')
       - read_page()

@@ -945,6 +945,10 @@ class BrowserSession:
         except Exception as e:
             return f"error: download failed for '{desc}': {e}"
 
+    def select_filter(self, filter_label: str, option_value: str) -> str:
+        """Stub — overridden by platform adapters that support unlabeled filter comboboxes."""
+        return f"error: select_filter not supported by this platform adapter (label='{filter_label}')"
+
     def upload_file(self, field_label: str, file_ref: str) -> str:
         """Upload a file to a file-input field.
 
