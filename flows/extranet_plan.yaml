@@ -13,7 +13,7 @@ flows:
       sequence: 1
       description: Go to the Ivalua Extranet Site
       type: transition
-      expected: ''
+      expected: extranet credentials page is displayed
       hints:
       - navigate('base_url')
       - read_page()
@@ -31,27 +31,38 @@ flows:
       - click('Login')
     - id: 29748b9a
       sequence: 3
-      description: go to the top navigation and go for requests and select requests from the dropdown
+      description: Use top menu to go to the requests browse page
       type: transition
-      expected: defects/requests should be visible
+      expected: after clicking the top menu navigation page, you will land on the request manage page which will contain various
+        search options to manage the requests.
+      hints:
+      - use top navigation menu for the navigation
+      - browse page url - https://project.ivalua.com/page/prj/req_browse#
     - id: 98fcedd0-f53d-4af8-8cdf-4c9d15872a3c
       sequence: 4
-      description: 'Search for campaign and select for two campaigns from the list '
+      description: 'Search for campaign and select for two campaigns in associated combo list '
       type: transition
-      expected: ''
+      expected: make sure both the campaigns are selected in terms combo box
       data:
         campaign1: '{{campaign1}}'
         campaign2: '{{campaign2}}'
       hints:
-      - look for "Campaign" and its associated dropdown
-      - click('{{campaign1}}')
-      - click('{{campaign2}}')
+      - 'look for "Campaign" div and its associated combobox '
+      - in the combo box type first campaign mentioned in the data and press enter
+      - then in the same combo box type second campaign mentioned in the data and press enter
+      - then click on the search button
+      - <div class="grid-cell" style="grid-column:1;grid-row:1">Campaign</div>
+      - '<span class="select2 select2-container select2-container--default select2-container--below select2-container--focus
+        select2-container--open" dir="ltr" data-select2-id="33"><span class="selection"><span class="select2-selection select2-selection--multiple"
+        role="combobox" aria-haspopup="true" aria-expanded="true" tabindex="-1" aria-disabled="false" aria-owns="select2-filter_camp_id-results"><ul
+        class="select2-selection__rendered"><li class="select2-search select2-search--inline"><input class="select2-search__field"
+        type="search" tabindex="0" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" role="searchbox"
+        aria-autocomplete="list" placeholder="--" style="width: 29px;" aria-controls="select2-filter_camp_id-results"></li></ul></span></span><span
+        class="dropdown-wrapper" aria-hidden="true"></span></span>'
     - id: f7665589-0e9d-4472-8c2e-617af70721f1
       sequence: 5
-      description: looks for excel extract button to download all the requests.
+      description: click excel extract button to download all the requests.
       type: transition
-      expected: make sure that new file is generated with the defects.
+      expected: all the defect requests are downloaded
       hints:
-      - read_page()
-      - click('Excel Extract')
-      - read_page()
+      - use tool to download_file('Excel Extract')

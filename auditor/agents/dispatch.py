@@ -29,7 +29,7 @@ def dispatch(
             return session.read_page()
 
         case "click":
-            result = session.click(args["element_description"])
+            result = session.click(args["element_description"], element_type=args.get("element_type"))
             if not result.startswith("error"):
                 if "(ivalua-listbox)" in result:
                     # Listbox selection completes a fill_field operation.

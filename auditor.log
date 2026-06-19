@@ -1,0 +1,11 @@
+{"asctime": "2026-06-18T22:30:45", "levelname": "INFO", "name": "auditor.test", "message": "logger ok"}
+{"asctime": "2026-06-18T22:33:10", "levelname": "INFO", "name": "auditor.smoke_test", "message": "Seq connection test", "log_props": {"MachineName": "AMACWN674J37J", "ProcessId": 82464, "LoggerName": "auditor.smoke_test", "ThreadId": 8517918336, "ThreadName": "MainThread"}}
+{"asctime": "2026-06-18T22:40:05", "levelname": "INFO", "name": "auditor", "message": "Seq handler connected \u2014 http://localhost:5341", "event": "seq_connected", "seq_url": "http://localhost:5341"}
+{"asctime": "2026-06-18T22:40:05", "levelname": "INFO", "name": "auditor.smoke_test", "message": "Seq connection test", "event": "smoke_test", "step_id": "step_001", "status": "ok"}
+{"asctime": "2026-06-18T22:40:05", "levelname": "DEBUG", "name": "auditor.smoke_test", "message": "debug message with detail", "event": "llm_request", "model": "claude-haiku", "messages_count": 3}
+{"asctime": "2026-06-18T22:40:05", "levelname": "WARNING", "name": "auditor.smoke_test", "message": "something to watch", "event": "test_warning"}
+{"asctime": "2026-06-18T23:47:45", "levelname": "INFO", "name": "auditor", "message": "Seq handler connected \u2014 http://localhost:5341", "event": "seq_connected", "seq_url": "http://localhost:5341"}
+{"asctime": "2026-06-18T23:47:52", "levelname": "INFO", "name": "auditor.api", "message": "startup recovery: restored 3 completed runs from evidence/"}
+{"asctime": "2026-06-19T04:21:44", "levelname": "INFO", "name": "auditor.direct_test", "message": "direct handler test", "event": "direct_test", "value": 42}
+{"asctime": "2026-06-19T04:24:23", "levelname": "INFO", "name": "auditor.test2", "message": "fixed handler test", "event": "fixed_test", "run_id": "abc123"}
+{"asctime": "2026-06-19T04:24:23", "levelname": "DEBUG", "name": "auditor.test2", "message": "debug from thread", "event": "llm_request", "model": "claude-haiku"}

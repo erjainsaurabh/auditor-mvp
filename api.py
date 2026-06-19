@@ -26,8 +26,16 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # ── logging bootstrap (must happen before any auditor import) ─────────────────
-from auditor.logger import get_logger, setup_logging
-setup_logging(log_file=Path(__file__).parent / "auditor.log")
+import yaml as _yaml
+from auditor.logger import get_logger, setup_logging, setup_logging_from_config
+_log_file = Path(__file__).parent / "auditor.log"
+setup_logging(log_file=_log_file)
+# Wire Seq immediately using config.yaml so all logs (including startup) go to Seq
+try:
+    _config = _yaml.safe_load((Path(__file__).parent / "config.yaml").read_text())
+    setup_logging_from_config(_config, log_file=_log_file)
+except Exception:
+    pass  # Seq failure must never crash the API
 log = get_logger("api")
 
 from run import run_audit

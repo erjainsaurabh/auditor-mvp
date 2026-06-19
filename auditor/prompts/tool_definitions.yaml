@@ -21,12 +21,17 @@
 - type: function
   function:
     name: click
-    description: "Click an element identified by its visible text. Do NOT use this for buttons that trigger a file download (Excel, CSV, PDF) — use download_file instead."
+    description: "Click an element identified by its visible text. Do NOT use this for buttons that trigger a file download (Excel, CSV, PDF) — use download_file instead. Always include element_type when the aria snapshot shows the role clearly (e.g. button \"Requests\" → element_type: button)."
     parameters:
       type: object
       properties:
         element_description:
           type: string
+          description: "The element's own visible text, placeholder, or accessible name exactly as it appears on the page — NOT a compound phrase describing its context. Use 'Sign in' not 'login form submit button'. Use '--' if that is the placeholder shown. Never combine multiple concepts into one string."
+        element_type:
+          type: string
+          enum: [button, link, option, tab, text, combobox, searchbox]
+          description: "Role of the element as shown in the aria snapshot. Providing this avoids ambiguous matches — e.g. use 'button' when aria shows button \"Requests\", 'link' when it shows link \"Home\", 'searchbox' for role=searchbox inputs, 'combobox' for dropdown widgets."
       required:
         - element_description
 
@@ -114,7 +119,7 @@
 - type: function
   function:
     name: hover
-    description: "Hover over an element to reveal CSS dropdowns or submenus, then call read_page to see the revealed options"
+    description: "Hover over an element to reveal CSS dropdowns or submenus. IMPORTANT: Before using hover, check if the target submenu links are already visible in the current aria snapshot — if they are, skip hover entirely and click the target link directly using a scoped element_description. Only use hover when the submenu items are absent from the aria snapshot. After hovering, click the revealed target immediately — do NOT call read_page between hover and click, as that risks losing the CSS hover state."
     parameters:
       type: object
       properties:

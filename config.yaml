@@ -16,6 +16,8 @@ llm:
   cache_system_prompt: true
   max_budget_usd: 10.00
   budget_duration: "1d"
+  log_llm_prompts: true              # log full message history sent to LLM
+  log_llm_responses: true            # log full LLM response text/tool calls
 
   # Swap provider by changing model strings only — no code changes needed:
   # reasoning_model: "bedrock/claude-sonnet-4-6"
@@ -25,6 +27,10 @@ llm:
 agent:
   max_actions_per_claim: 20
   max_retries_per_claim: 3
+
+logging:
+  seq_url: "http://host.docker.internal:5341"   # host.docker.internal = Mac host from inside Docker; set to null to disable
+  log_file: "auditor.log"
 
 evidence:
   output_dir: "evidence"

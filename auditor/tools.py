@@ -8,8 +8,12 @@ from typing import TYPE_CHECKING
 
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 
+from auditor.logger import get_logger
+
 if TYPE_CHECKING:
     from auditor.strategy_stats import StrategyStats
+
+log = get_logger(__name__)
 
 
 @dataclass
@@ -215,21 +219,53 @@ class BrowserSession:
                     if (node.id) return '//*[@id="' + node.id + '"]';
                     return '';
                 }
-                function getStructuralXPath(node) {
-                    const parts = [];
-                    let cur = node;
+                // Scoped XPath: walk up to the nearest stable landmark ancestor
+                // (nav, form, table, dialog, header, main, aside, footer) then
+                // express the path relative to that anchor.
+                // This prevents ambiguous selectors when two elements share the
+                // same name in different DOM regions (e.g. nav "Requests" vs
+                // main "Requests" heading).
+                function getScopedXPath(node) {
+                    const LANDMARKS = new Set([
+                        'nav','form','table','header','main','aside','footer',
+                        'dialog','section','article'
+                    ]);
+                    // Find nearest landmark ancestor
+                    let anchor = null;
+                    let cur = node.parentElement;
                     while (cur && cur.nodeType === 1) {
-                        let idx = 1;
-                        let sib = cur.previousElementSibling;
-                        while (sib) { if (sib.tagName === cur.tagName) idx++; sib = sib.previousElementSibling; }
-                        parts.unshift(cur.tagName.toLowerCase() + (idx > 1 ? '[' + idx + ']' : ''));
+                        const tag = cur.tagName.toLowerCase();
+                        const role = (cur.getAttribute('role') || '').toLowerCase();
+                        if (LANDMARKS.has(tag) || LANDMARKS.has(role)) {
+                            anchor = cur;
+                            break;
+                        }
                         cur = cur.parentElement;
+                    }
+                    // Build relative path from anchor (or absolute if no landmark found)
+                    const parts = [];
+                    let walker = node;
+                    const stop = anchor ? anchor : null;
+                    while (walker && walker.nodeType === 1 && walker !== stop) {
+                        let idx = 1;
+                        let sib = walker.previousElementSibling;
+                        while (sib) {
+                            if (sib.tagName === walker.tagName) idx++;
+                            sib = sib.previousElementSibling;
+                        }
+                        parts.unshift(walker.tagName.toLowerCase() + (idx > 1 ? '[' + idx + ']' : ''));
+                        walker = walker.parentElement;
+                    }
+                    if (anchor) {
+                        const anchorTag = anchor.tagName.toLowerCase();
+                        const anchorId = anchor.id ? '[@id="' + anchor.id + '"]' : '';
+                        return '//' + anchorTag + anchorId + '/' + parts.join('/');
                     }
                     return '/' + parts.join('/');
                 }
                 return {
                     xpath_id:         getIdXPath(el),
-                    xpath_structural: getStructuralXPath(el),
+                    xpath_structural: getScopedXPath(el),
                     aria_label:       el.getAttribute('aria-label') || '',
                     text:             (el.textContent || '').trim().slice(0, 100)
                 };
@@ -329,6 +365,11 @@ class BrowserSession:
             # ── Priority 4: focused view around last interacted element ───────
             # If a click or fill just happened, centre the snapshot on that element.
             if self._last_interacted_label:
+                # Focused path: zoom into the area around the last interaction.
+                # Use full depth (no depth cap) — we're already scoped to a small
+                # section of the page so volume is not a concern, and full depth
+                # ensures widget internals (e.g. combobox searchbox, chip tokens)
+                # are visible for the next action.
                 focused = self._focused_snapshot(snapshot, ancestor_levels=3)
                 trimmed = _trim_table_rows(focused, max_rows=5)
                 return (
@@ -336,8 +377,16 @@ class BrowserSession:
                     f"[focused — last action: {self._last_interacted_label!r}]\n{trimmed}"
                 )
 
-            # ── Default: full page with table trimming ────────────────────────
-            trimmed = _trim_table_rows(snapshot, max_rows=5)
+            # ── Default: depth-limited full page ─────────────────────────────
+            # No prior interaction context — show the whole page but cap nesting
+            # at depth 4 (2-space indent × 4 = 8 spaces). This keeps all landmarks
+            # and interactive elements (buttons, comboboxes, links) visible while
+            # stripping decorative sub-elements inside widgets and deep table cell
+            # content that bloat the snapshot to 90KB+ on list pages.
+            # Subsequent read_page calls have _last_interacted_label set and use
+            # _focused_snapshot() above to zoom into the relevant section instead.
+            depth_limited = _limit_snapshot_depth(snapshot, max_depth=4)
+            trimmed = _trim_table_rows(depth_limited, max_rows=5)
             return f"url: {url}\ntitle: {title}\n\n{trimmed}"
 
         except Exception as e:
@@ -368,7 +417,7 @@ class BrowserSession:
         """
         return None
 
-    def click(self, element_description: str) -> str:
+    def click(self, element_description: str, element_type: str | None = None) -> str:
         page = self._page
         self._last_selectors = []
         # Strip mandatory-field asterisk markers that bleed into aria labels
@@ -405,22 +454,34 @@ class BrowserSession:
         # The duplicate tab strategy (desc variant) has been removed — it was
         # identical to the clean variant for all practical inputs and wasted 1500ms.
         normal_strategies: list[tuple[object, bool, str]] = [
-            (lambda: page.get_by_role("option", name=clean).first, False, "option"),
-            (lambda: page.get_by_role("tab",    name=clean).first, True,  "tab"),
-            (lambda: page.get_by_role("button", name=clean).first, False, "button"),
-            (lambda: page.get_by_role("link",   name=clean).first, False, "link"),
-            (lambda: page.get_by_text(clean, exact=True).first,    False, "text_exact"),
-            (lambda: page.get_by_text(desc,  exact=True).first,    False, "text_desc"),
-            (lambda: page.get_by_text(clean, exact=False).first,   False, "text_fuzzy"),
+            (lambda: page.get_by_role("option",    name=clean).first, False, "option"),
+            (lambda: page.get_by_role("tab",       name=clean).first, True,  "tab"),
+            (lambda: page.get_by_role("button",    name=clean).first, False, "button"),
+            (lambda: page.get_by_role("link",      name=clean).first, False, "link"),
+            (lambda: page.get_by_role("combobox",  name=clean).first, False, "combobox"),
+            (lambda: page.get_by_role("searchbox", name=clean).first, False, "searchbox"),
+            (lambda: page.get_by_text(clean, exact=True).first,       False, "text_exact"),
+            (lambda: page.get_by_text(desc,  exact=True).first,       False, "text_desc"),
+            (lambda: page.get_by_text(clean, exact=False).first,      False, "text_fuzzy"),
             (lambda: page.locator(f'[aria-label*="{css_clean}"]').first, False, "aria_label"),
             (lambda: page.locator(f'[title*="{css_clean}"]').first,      False, "title"),
         ]
+
+        # If the LLM specified element_type, pin that strategy to position 0 before
+        # any stats-based reordering — it has direct aria evidence and beats heuristics.
+        _type_to_key = {"button": "button", "link": "link", "option": "option", "tab": "tab",
+                        "text": "text_exact", "combobox": "combobox", "searchbox": "searchbox"}
+        pinned_key = _type_to_key.get(element_type or "", "")
 
         # Reorder by historical win rate — highest win_rate tried first.
         # On cold start (no stats / no data) the default order above is preserved.
         if self._stats:
             key_rank = {k: i for i, k in enumerate(self._stats.sorted_keys("click"))}
             normal_strategies.sort(key=lambda t: key_rank.get(t[2], 999))
+
+        # Pinned strategy always goes first regardless of stats.
+        if pinned_key:
+            normal_strategies.sort(key=lambda t: 0 if t[2] == pinned_key else 1)
 
         for i, (strategy_fn, is_tab, strategy_key) in enumerate(normal_strategies):
             if self._stats:
@@ -430,7 +491,7 @@ class BrowserSession:
                 selectors = self._extract_selectors(loc)
                 if selectors:
                     sel_str = " | ".join(f"{s['type']}={s['value']!r}" for s in selectors)
-                    print(f"           [click strategy {strategy_key}] element: {sel_str}")
+                    log.debug("[click strategy] element resolved", extra={"event": "click_strategy", "strategy": strategy_key, "selectors": sel_str})
                 self._last_selectors = selectors
                 loc.click(timeout=1500)
                 if self._stats:
@@ -441,7 +502,7 @@ class BrowserSession:
                     return f"clicked '{element_description}' (tab)"
                 return f"clicked '{element_description}'"
             except Exception as e:
-                print(f"           [click strategy {strategy_key}] failed: {e}")
+                log.debug("[click strategy] failed", extra={"event": "click_strategy", "strategy": strategy_key, "error": str(e)})
                 self._last_selectors = []
                 continue
 
@@ -483,10 +544,10 @@ class BrowserSession:
                 target.check(timeout=2000)
                 page.wait_for_timeout(800)
                 self._last_selectors = self._extract_selectors(target)
-                print(f"           [click radio] checked radio '{clean}' (idx {idx if target else 0})")
+                log.debug("[click radio] checked radio", extra={"event": "click_radio", "label": clean, "idx": idx if target else 0})
                 return f"clicked '{element_description}' (radio)"
         except Exception as e:
-            print(f"           [click radio] failed: {e}")
+            log.debug("[click radio] failed", extra={"event": "click_radio", "error": str(e)})
 
         # JavaScript radio fallback — finds input[type=radio] by adjacent label text,
         # prefers unchecked radios, sets checked and dispatches change event to trigger
@@ -532,7 +593,7 @@ class BrowserSession:
                     pass
                 return f"clicked '{element_description}' (radio-js)"
         except Exception as e:
-            print(f"           [click radio-js] failed: {e}")
+            log.debug("[click radio-js] failed", extra={"event": "click_radio_js", "error": str(e)})
 
         # JavaScript click — works on CSS-hidden elements (e.g. hover dropdowns).
         # Returns {found, id, xpath} so we can extract selectors for fingerprinting.
@@ -627,10 +688,10 @@ class BrowserSession:
                 }}""")
                 if found:
                     self._page.wait_for_timeout(1500)
-                    print(f"           [click iframe JS walk-up] {found}")
+                    log.debug("[click iframe JS walk-up] clicked", extra={"event": "click_iframe", "clicked": found})
                     return f"clicked '{element_description}' (iframe-js)"
             except Exception as e:
-                print(f"           [click iframe JS walk-up] failed: {e}")
+                log.debug("[click iframe JS walk-up] failed", extra={"event": "click_iframe", "error": str(e)})
 
             iframe_strategies = [
                 lambda f=frame: f.get_by_text(desc, exact=True).first,
@@ -647,11 +708,11 @@ class BrowserSession:
                     selectors = self._extract_selectors(loc)
                     if selectors:
                         sel_str = " | ".join(f"{s['type']}={s['value']!r}" for s in selectors)
-                        print(f"           [click iframe strategy {i+1}] element: {sel_str}")
+                        log.debug("[click iframe strategy] element resolved", extra={"event": "click_iframe_strategy", "strategy_n": i+1, "selectors": sel_str})
                     loc.click(timeout=2000)
                     return f"clicked '{element_description}' (iframe)"
                 except Exception as e:
-                    print(f"           [click iframe strategy {i+1}] failed: {e}")
+                    log.debug("[click iframe strategy] failed", extra={"event": "click_iframe_strategy", "strategy_n": i+1, "error": str(e)})
                     continue
 
         return f"error: could not find element '{element_description}'"
@@ -725,7 +786,7 @@ class BrowserSession:
                 selectors = self._extract_selectors(loc)
                 if selectors:
                     sel_str = " | ".join(f"{s['type']}={s['value']!r}" for s in selectors)
-                    print(f"           [fill_field strategy {strategy_key}] element: {sel_str}")
+                    log.debug("[fill_field strategy] element resolved", extra={"event": "fill_field_strategy", "strategy": strategy_key, "selectors": sel_str})
                 self._last_selectors = selectors
                 loc.fill(value, timeout=timeout)
                 page.keyboard.press("Escape")  # dismiss calendar pickers / dropdowns
@@ -734,7 +795,7 @@ class BrowserSession:
                     self._stats.record_win("fill_field", strategy_key)
                 return f"filled '{label}' with '{value}' ({strategy_key})"
             except Exception as e:
-                print(f"           [fill_field strategy {strategy_key}] failed: {e}")
+                log.debug("[fill_field strategy] failed", extra={"event": "fill_field_strategy", "strategy": strategy_key, "error": str(e)})
                 self._last_selectors = []
                 continue
 
@@ -757,13 +818,13 @@ class BrowserSession:
                     selectors = self._extract_selectors(loc)
                     if selectors:
                         sel_str = " | ".join(f"{s['type']}={s['value']!r}" for s in selectors)
-                        print(f"           [fill_field iframe strategy {i+1}] element: {sel_str}")
+                        log.debug("[fill_field iframe strategy] element resolved", extra={"event": "fill_field_strategy", "strategy_n": i+1, "selectors": sel_str})
                     self._last_selectors = selectors
                     loc.fill(value, timeout=2000)
                     page.wait_for_timeout(500)
                     return f"filled '{label}' with '{value}' (iframe strategy {i+1})"
                 except Exception as e:
-                    print(f"           [fill_field iframe strategy {i+1}] failed: {e}")
+                    log.debug("[fill_field iframe strategy] failed", extra={"event": "fill_field_strategy", "strategy_n": i+1, "error": str(e)})
                     self._last_selectors = []
                     continue
 
@@ -888,8 +949,12 @@ class BrowserSession:
                 loc = strategy()
                 self._last_selectors = self._extract_selectors(loc)
                 loc.hover(timeout=1500)
-                page.wait_for_timeout(200)
-                return f"hovered over '{element_description}' — dropdown or submenu may now be visible, call read_page to see options"
+                page.wait_for_timeout(300)
+                return (
+                    f"hovered over '{element_description}' — CSS hover state is now active. "
+                    f"Click your target element immediately. Do NOT call read_page — "
+                    f"it will lose the hover state and close the dropdown."
+                )
             except Exception:
                 self._last_selectors = []
                 continue
@@ -907,8 +972,11 @@ class BrowserSession:
                 return false;
             }}""")
             if found:
-                page.wait_for_timeout(200)
-                return f"hovered over '{element_description}' (js) — dropdown may now be visible"
+                page.wait_for_timeout(300)
+                return (
+                    f"hovered over '{element_description}' (js) — CSS hover state is now active. "
+                    f"Click your target element immediately. Do NOT call read_page."
+                )
         except Exception:
             pass
 
@@ -989,6 +1057,39 @@ class BrowserSession:
             return str(path)
         except Exception as e:
             return f"error taking screenshot: {e}"
+
+
+def _limit_snapshot_depth(snapshot: str, max_depth: int = 4) -> str:
+    """Limit aria snapshot nesting to max_depth indentation levels.
+
+    Each level is 2 spaces in Playwright's aria_snapshot output.
+    Lines deeper than max_depth are dropped and replaced with a single
+    ellipsis line so the LLM knows content was omitted.
+
+    Used on the first read_page (no prior interaction context) to keep
+    the full-page overview compact. Subsequent calls use _focused_snapshot()
+    to zoom into the relevant section at full depth instead.
+    """
+    lines = snapshot.splitlines()
+    out: list[str] = []
+    prev_dropped = False
+
+    for line in lines:
+        if not line.strip():
+            out.append(line)
+            prev_dropped = False
+            continue
+        indent = len(line) - len(line.lstrip())
+        depth = indent // 2  # Playwright uses 2-space indentation
+        if depth > max_depth:
+            if not prev_dropped:
+                out.append(f"{' ' * indent}...")
+            prev_dropped = True
+        else:
+            out.append(line)
+            prev_dropped = False
+
+    return "\n".join(out)
 
 
 def _trim_table_rows(snapshot: str, max_rows: int = 5) -> str:

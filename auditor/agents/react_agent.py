@@ -48,8 +48,11 @@ from auditor.fingerprint import (
 from auditor.graph import build_step_graph, cascade_step_failure, mark_steps_blocked, step_execution_order
 from auditor.llm_client import LLMClient
 from auditor.loader import ConditionStatus, Step, StepStatus, TestCondition
+from auditor.logger import get_logger
+from auditor.pattern_inventory import PatternInventory
 from auditor.storage.filesystem import EvidenceCollector
 
+log = get_logger(__name__)
 _replayer = FingerprintReplayer()
 
 
@@ -66,6 +69,7 @@ def run_test_condition(
     max_actions: int,
     session_data: dict[str, str] | None = None,
     fp_store: FingerprintStore | FingerprintRouter | None = None,
+    pattern_inventory: PatternInventory | None = None,
 ) -> tuple[ConditionStatus, list[dict], dict[str, str]]:
     session_data = session_data or {}
     console.print(Rule(f"[bold blue]{tc.id}[/bold blue] — {tc.goal}", style="blue"))
@@ -79,8 +83,6 @@ def run_test_condition(
     order = step_execution_order(step_graph)
     step_map = tc.step_map
 
-    messages: list[dict[str, Any]] = []
-    read_page_ids: list[str] = []
     evidence_records: list[dict] = []
     first_step = True
 
@@ -93,8 +95,14 @@ def run_test_condition(
             console.print(f"    [yellow]⊘[/yellow] {step_id} — blocked")
             continue
 
+        messages: list[dict[str, Any]] = []
+        read_page_ids: list[str] = []
+
         console.print(Rule(f"[bold]{step_id}[/bold] — {step.description} [dim][{ts()}][/dim]", style="dim"))
         console.print(f"    [dim]expected:[/dim] {step.expected}")
+        log.info("step starting", extra={"event": "step_start", "step_id": step_id,
+                                         "description": step.description, "expected": step.expected,
+                                         "run_id": run_id, "tc_id": tc.id})
 
         ev = EvidenceCollector(run_id=run_id, claim_id=step_id, output_dir=output_dir)
 
@@ -127,7 +135,11 @@ def run_test_condition(
         hints_context = ""
         if step.hints:
             hints_lines = "\n".join(f"  {i+1}. {h}" for i, h in enumerate(step.hints))
-            hints_context = f"IMPORTANT — follow these steps exactly:\n{hints_lines}\n"
+            hints_context = (
+                f"Suggested tool calls for this step:\n{hints_lines}\n"
+                f"If these don't work, ignore them and find your own way "
+                f"to complete the step.\n"
+            )
 
         data_context = ""
         if step.data:
@@ -144,12 +156,23 @@ def run_test_condition(
             )
             data_context = f"Test data (use these exact values).{override_note}\n{data_lines}\n"
 
+        # Pattern inventory suggestion — only injected when no fingerprint exists
+        # and the inventory has enough observations for this (platform, step_type, verb)
+        inventory_context = ""
+        if pattern_inventory and not fp_for_step:
+            _snap_for_query = session.read_page()
+            suggestion = pattern_inventory.query(step.type.value, step.description, _snap_for_query)
+            if suggestion:
+                inventory_context = suggestion
+                console.print(f"    [dim cyan]📖 pattern inventory match — suggestion injected[/dim cyan]")
+
         messages.append({
             "role": "user",
             "content": (
                 f"Claim: {step.description}\n"
                 f"Expected outcome: {step.expected}\n"
                 + hints_context
+                + inventory_context
                 + data_context
                 + nav_context
                 + "Verify this claim and call verify_claim when done."
@@ -175,6 +198,8 @@ def run_test_condition(
             fp_for_step=fp_for_step,
             session_data=session_data,
             skip_navigate=is_continue,
+            pattern_inventory=pattern_inventory,
+            preloaded_snapshot=_snap_for_query if (pattern_inventory and not fp_for_step) else None,
         )
         live_url = session.current_url()
         session_data["_last_url"] = live_url or snap.get("url", "")
@@ -185,6 +210,9 @@ def run_test_condition(
 
         icon = {"verified": "[green]✓[/green]", "failed": "[red]✗[/red]"}.get(status.value, "[yellow]⊘[/yellow]")
         console.print(f"    {icon} {step_id} — {status.value} [dim]({elapsed(step_start)})[/dim]")
+        log.info("step complete", extra={"event": "step_done", "step_id": step_id,
+                                         "status": status.value, "tc_id": tc.id, "run_id": run_id,
+                                         "elapsed_s": round(time.perf_counter() - step_start, 2)})
 
         if status in (StepStatus.failed, StepStatus.blocked):
             blocked = cascade_step_failure(step_graph, step_id)
@@ -229,6 +257,7 @@ class ReactAgent:
         max_actions: int,
         session_data: dict[str, str] | None = None,
         fp_store: Any | None = None,
+        pattern_inventory: PatternInventory | None = None,
     ) -> tuple[ConditionStatus, list[dict], dict[str, str]]:
         return run_test_condition(
             tc=tc,
@@ -239,6 +268,7 @@ class ReactAgent:
             max_actions=max_actions,
             session_data=session_data,
             fp_store=fp_store,
+            pattern_inventory=pattern_inventory,
         )
 
 
@@ -311,6 +341,46 @@ def _build_nav_context(
     )
 
 
+def _trim_to_causal_chain(records: list) -> list:
+    """Return only the actions that form the minimal causal path to success.
+
+    Rules applied in order:
+    1. Drop read_page and take_screenshot — observational, not causal.
+    2. Deduplicate: if the same tool+args appear consecutively, keep only the last
+       (the last attempt is the one that worked or informed the next action).
+    3. For navigate: keep only the final navigate per unique URL — earlier navigates
+       to the same destination are redundant.
+    4. Drop navigate actions where the URL didn't change (no-op navigates).
+    """
+    from auditor.fingerprint import ActionRecord
+
+    _observational = {"read_page", "take_screenshot"}
+    cleaned = [r for r in records if r.tool not in _observational]
+
+    # Deduplicate consecutive same-tool same-args (keep last of each run)
+    deduped: list = []
+    for r in cleaned:
+        if (deduped and deduped[-1].tool == r.tool
+                and deduped[-1].args == r.args):
+            deduped[-1] = r  # replace with latest (may have better selectors)
+        else:
+            deduped.append(r)
+
+    # For navigate: keep only the last navigate to each unique target
+    seen_nav: dict[str, int] = {}
+    for i, r in enumerate(deduped):
+        if r.tool == "navigate":
+            target = r.args.get("target", "")
+            seen_nav[target] = i
+    nav_keep = set(seen_nav.values())
+
+    result = [
+        r for i, r in enumerate(deduped)
+        if r.tool != "navigate" or i in nav_keep
+    ]
+    return result
+
+
 def _react_loop(
     step: Step,
     session: Any,
@@ -325,10 +395,13 @@ def _react_loop(
     fp_for_step: StepFingerprint | None = None,
     session_data: dict[str, str] | None = None,
     skip_navigate: bool = False,
+    pattern_inventory: PatternInventory | None = None,
+    preloaded_snapshot: str | None = None,
 ) -> StepStatus:
     # --- Tier 1: fingerprint replay (zero LLM calls on stable UI) ---
     if fp_store and fp_for_step and fp_for_step.actions:
         console.print(f"    [dim cyan]⚡ trying fingerprint replay… [{ts()}][/dim cyan]")
+        url_before_replay = session.current_url()
         replay_snap: dict[str, str] = snap if snap is not None else {}
         status = _replayer.try_replay(
             step, session, evidence, fp_for_step, replay_snap, session_data, skip_navigate=skip_navigate
@@ -346,15 +419,86 @@ def _react_loop(
                 ),
             })
             console.print(f"    [dim cyan]⚡ replay succeeded — no LLM call [{ts()}][/dim cyan]")
+            log.info("fingerprint replay succeeded", extra={"event": "fp_replay_hit",
+                                                            "step_id": step.id, "status": str(status)})
             return status
+
+        # Replay failed — restore browser to pre-replay URL so ReAct starts from known state
         evidence.set_fingerprint_status("miss")
+        url_after_replay = session.current_url()
+        if url_after_replay != url_before_replay:
+            console.print(f"    [dim yellow]replay left browser at {url_after_replay} — restoring to {url_before_replay}[/dim yellow]")
+            restore_result = session.navigate(url_before_replay)
+            log.info("replay rollback", extra={
+                "event": "fp_replay_rollback",
+                "step_id": step.id,
+                "url_before_replay": url_before_replay,
+                "url_after_replay": url_after_replay,
+                "restore_result": restore_result[:200],
+            })
         console.print(f"    [dim yellow]replay failed → falling back to ReAct[/dim yellow]")
+        log.info("fingerprint replay failed — falling back to ReAct", extra={"event": "fp_replay_miss",
+                                                                              "step_id": step.id})
         step.status = StepStatus.blocked
+
+        # Rebuild the user message with the actual post-rollback URL (Option 4)
+        actual_url = session.current_url()
+        if messages and messages[-1]["role"] == "user":
+            old_content = messages[-1]["content"]
+            # Replace the nav_context portion — strip everything from "You are continuing"
+            # or "Browser is currently at" to end, then append fresh URL
+            import re as _re2
+            cleaned = _re2.sub(
+                r"(You are continuing from the previous step\..*|Browser is currently at:.*)",
+                "",
+                old_content,
+                flags=_re2.DOTALL,
+            ).rstrip()
+            messages[-1]["content"] = (
+                cleaned + "\n"
+                f"Browser is currently at: {actual_url}. "
+                "Proceed directly with verifying this claim from the current page.\n"
+                "Verify this claim and call verify_claim when done."
+            )
 
     # --- Tier 2: full ReAct loop ---
     action_records: list[ActionRecord] = []
-    last_snapshot = ""
     _failed_attempts: dict[str, int] = {}
+    _working_memory: dict[str, Any] = {
+        "step": 0,
+        "current_url": session.current_url(),
+        "last_action": None,
+        "last_successful_action": None,
+        "failed_attempts": {},
+        "navigations": [],
+    }
+
+    # Pre-load page state — reuse snapshot already taken for pattern inventory query
+    # if available, otherwise call read_page now. Appended to the user message so
+    # the LLM starts with full page context and doesn't waste its first action.
+    initial_snapshot = preloaded_snapshot if preloaded_snapshot else session.read_page()
+    last_snapshot = initial_snapshot
+    evidence.log_action("read_page({})", initial_snapshot)
+    snapshot_injected = False
+    if messages and messages[-1]["role"] == "user":
+        messages[-1]["content"] += f"\n\nCurrent page state:\n{initial_snapshot}"
+        snapshot_injected = True
+    snap_lower = initial_snapshot.lower()
+    # Extract short quoted strings from hints (e.g. "Campaign", "--") plus
+    # words from step description as subject keywords to check in the snapshot.
+    import re as _re
+    _quoted = _re.findall(r'"([^"]{2,30})"', " ".join(step.hints or []))
+    _desc_words = [w for w in step.description.split() if len(w) > 4][:5]
+    _keywords = list(dict.fromkeys(_quoted + _desc_words))  # dedup, preserve order
+    log.debug("pre-loaded read_page", extra={
+        "event": "preload_read_page",
+        "step_id": step.id,
+        "url": session.current_url(),
+        "reused_from_query": preloaded_snapshot is not None,
+        "injected_into_prompt": snapshot_injected,
+        "snapshot_chars": len(initial_snapshot),
+        "keywords_in_snapshot": {kw: (kw.lower() in snap_lower) for kw in _keywords},
+    })
 
     def _attempt_key(tool_name: str, tool_args: dict) -> str | None:
         if tool_name == "click":
@@ -427,8 +571,33 @@ def _react_loop(
             log_llm_decision(step_num, name, args)
 
             action_start = time.perf_counter()
+            url_before = session.current_url()
             result = dispatch(name, args, step, session, evidence)
             action_elapsed = time.perf_counter() - action_start
+            url_after = session.current_url()
+
+            _sensitive_re = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
+            safe_args = {
+                k: "[sensitive]" if _sensitive_re.search(k) else v
+                for k, v in args.items()
+            }
+            result_summary = result.split("\n")[0][:200] if result else ""
+            log.debug(
+                "tool call",
+                extra={
+                    "event": "tool_call",
+                    "step_id": step.id,
+                    "step_num": step_num,
+                    "tool": name,
+                    "tool_args": safe_args,
+                    "result_summary": result_summary,
+                    "success": not result.startswith("error"),
+                    "url_before": url_before,
+                    "url_after": url_after,
+                    "navigated": url_before != url_after,
+                    "elapsed_ms": round(action_elapsed * 1000),
+                },
+            )
 
             # Failure deduplication — escalating hints after repeated identical failures
             akey = _attempt_key(name, args)
@@ -449,10 +618,37 @@ def _react_loop(
             if action_elapsed > 0.5 and name != "verify_claim":
                 console.print(f"           [dim]action took {action_elapsed:.1f}s[/dim]")
 
+            # Update working memory from this action
+            _working_memory["step"] = step_num
+            _working_memory["current_url"] = url_after
+            _working_memory["last_action"] = {"tool": name, "args": safe_args, "success": not result.startswith("error")}
+            if not result.startswith("error") and name != "read_page":
+                _working_memory["last_successful_action"] = {"tool": name, "args": safe_args}
+            if url_after not in _working_memory["navigations"] and url_after:
+                _working_memory["navigations"].append(url_after)
+            if result.startswith("error"):
+                akey_wm = f"{name}:{args.get('element_description', args.get('field_label', args.get('target', '')))}"
+                _working_memory["failed_attempts"][akey_wm] = _working_memory["failed_attempts"].get(akey_wm, 0) + 1
+
+            # Inject compact working memory into tool result (skip for verify_claim and read_page)
+            content = result
+            if name not in ("verify_claim", "read_page"):
+                wm_lines = [
+                    f"[context] step {_working_memory['step']}/20"
+                    f" | url: {_working_memory['current_url']}"
+                ]
+                if _working_memory["failed_attempts"]:
+                    fa = ", ".join(f"{k}×{v}" for k, v in _working_memory["failed_attempts"].items())
+                    wm_lines.append(f"[context] failed so far: {fa}")
+                if _working_memory["last_successful_action"]:
+                    la = _working_memory["last_successful_action"]
+                    wm_lines.append(f"[context] last success: {la['tool']}({la['args']})")
+                content = result + "\n" + "\n".join(wm_lines)
+
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
-                "content": result,
+                "content": content,
             })
 
             if name == "read_page":
@@ -463,7 +659,7 @@ def _react_loop(
 
             # Capture selectors from successful interactive actions
             selectors: list[SelectorRecord] = []
-            if name in ("click", "hover", "fill_field", "select_option") and not result.startswith("error"):
+            if name in ("click", "hover", "fill_field", "select_option", "download_file") and not result.startswith("error"):
                 selectors = [SelectorRecord(**s) for s in session._last_selectors]
                 log_selectors(selectors)
 
@@ -482,13 +678,15 @@ def _react_loop(
                 if fp_store and args.get("verdict") == "verified":
                     assertions = extract_assertions(args.get("reasoning", ""), last_snapshot)
                     snap_lower = last_snapshot.lower()
-                    for ar in action_records[:-1]:
+                    causal_records = _trim_to_causal_chain(action_records[:-1])
+                    for ar in causal_records:
                         if ar.tool == "fill_field":
                             val = ar.args.get("value", "")
                             if len(val) >= 3 and val.lower() in snap_lower and val not in assertions:
                                 assertions.append(val)
-                    action_records[-1].assertions = assertions
-                    templatize_actions(action_records, session_data or {}, step.data)
+                    causal_records.append(action_records[-1])  # re-attach verify_claim
+                    causal_records[-1].assertions = assertions
+                    templatize_actions(causal_records, session_data or {}, step.data)
                     current_hash = step_definition_hash(
                         step.description,
                         step.expected,
@@ -502,7 +700,7 @@ def _react_loop(
                         run_id=run_id,
                         verdict=args["verdict"],
                         confidence=args["confidence"],
-                        actions=action_records,
+                        actions=causal_records,
                         step_hash=current_hash,
                     )
                     fp_store.record(fp)
@@ -512,6 +710,16 @@ def _react_loop(
                         f"({len(action_records)} actions, {len(assertions)} assertions, "
                         f"hash={current_hash})[/dim cyan]"
                     )
+
+                # Record into pattern inventory — always on verified, independent of fp_store
+                if pattern_inventory and args.get("verdict") == "verified":
+                    pattern_inventory.record(
+                        step_type=step.type.value,
+                        description=step.description,
+                        action_records=action_records[:-1],  # exclude verify_claim itself
+                        last_snapshot=last_snapshot,
+                    )
+                    pattern_inventory.save()
 
                 return step.status
 

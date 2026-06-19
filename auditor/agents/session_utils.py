@@ -35,7 +35,10 @@ def snap_from_messages(messages: list[dict], snap: dict[str, str]) -> None:
 
 
 def prune_stale_read_pages(messages: list[dict], latest_id: str, read_page_ids: list[str]) -> None:
-    """Replace old read_page results with a placeholder — only the latest snapshot is needed."""
+    """Replace old read_page results with a placeholder — only the latest snapshot is needed.
+    Also collapses repeated identical tool errors into a single counted message so the
+    conversation history doesn't bloat with 8× identical 'Timeout 1500ms exceeded' strings.
+    """
     for msg in messages:
         if (
             msg.get("role") == "tool"
@@ -43,6 +46,22 @@ def prune_stale_read_pages(messages: list[dict], latest_id: str, read_page_ids: 
             and msg.get("tool_call_id") != latest_id
         ):
             msg["content"] = "[page snapshot removed — superseded by later read_page]"
+
+    # Collapse consecutive identical tool error messages.
+    # Pattern: tool msg with same error text appearing N times → keep first, replace rest.
+    seen_errors: dict[str, int] = {}
+    for msg in messages:
+        if msg.get("role") != "tool":
+            continue
+        content = msg.get("content", "")
+        if not isinstance(content, str) or not content.startswith("error:"):
+            continue
+        # Normalise: strip variable parts (timeouts, element IDs) for dedup key
+        key = re.sub(r"\d+ms|\bid=['\"]?[\w-]+['\"]?", "", content)[:120]
+        count = seen_errors.get(key, 0)
+        seen_errors[key] = count + 1
+        if count > 0:
+            msg["content"] = f"[same error repeated — already shown above]"
 
 
 def execute_captures(

@@ -16,7 +16,10 @@ import json
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+from auditor.logger import get_logger
 from auditor.tools import BrowserSession
+
+log = get_logger(__name__)
 
 
 @dataclass
@@ -83,7 +86,7 @@ class IvaluaBrowserSession(BrowserSession):
                 if self._page.evaluate(f"!!document.querySelector({json.dumps(cached)})"):
                     return cached
                 # Cached selector no longer works — re-discover
-                print(f"           [discover] stale cache for {element_key!r}, re-discovering")
+                log.debug("[discover] stale cache, re-discovering", extra={"event": "discover", "element_key": element_key})
                 del self._selector_cache[element_key]
             except Exception:
                 self._selector_cache.pop(element_key, None)  # clear silently
@@ -96,7 +99,7 @@ class IvaluaBrowserSession(BrowserSession):
                 )
                 if found:
                     self._selector_cache[element_key] = selector
-                    print(f"           [discover] {element_key!r} → {selector!r}")
+                    log.debug("[discover] resolved selector", extra={"event": "discover", "element_key": element_key, "selector": selector})
                     return selector
             except Exception:
                 continue
@@ -122,19 +125,10 @@ class IvaluaBrowserSession(BrowserSession):
                 }));
             }""")
             if candidates:
-                print(f"           [discover] visible Ivalua elements on page (add to ivalua_elements.yaml):")
-                for c in candidates:
-                    parts = [f"<{c['tag']}>"]
-                    if c['id']:    parts.append(f"id={c['id']!r}")
-                    if c['name']:  parts.append(f"name={c['name']!r}")
-                    if c['role']:  parts.append(f"data-iv-role={c['role']!r}")
-                    if c['type']:  parts.append(f"type={c['type']!r}")
-                    if c['ivCls']: parts.append(f"class={c['ivCls']!r}")
-                    if c['text']:  parts.append(f"text={c['text']!r}")
-                    print(f"             {' '.join(parts)}")
+                log.debug("[discover] visible Ivalua elements on page (add to ivalua_elements.yaml)", extra={"event": "discover", "candidates": candidates})
         except Exception:
             pass
-        print(f"           [discover] {element_key!r}: no strategy matched on this page")
+        log.debug("[discover] no strategy matched on this page", extra={"event": "discover", "element_key": element_key})
         return None
 
     # ------------------------------------------------------------------
@@ -172,10 +166,10 @@ class IvaluaBrowserSession(BrowserSession):
                 self._last_selectors = [
                     {"type": "css", "value": selector, "successes": 1, "failures": 0}
                 ]
-                print(f"           [panel-search] clicked via discovered selector: {selector!r}")
+                log.debug("[panel-search] clicked via discovered selector", extra={"event": "panel_search", "selector": selector})
                 return "clicked panel Search button"
         except Exception as e:
-            print(f"           [panel-search] failed: {e}")
+            log.debug("[panel-search] failed", extra={"event": "panel_search", "error": str(e)})
         return None
 
     def _fill_chip_multiselect(self, label: str, value: str) -> str | None:
@@ -235,9 +229,9 @@ class IvaluaBrowserSession(BrowserSession):
                     f"typed '{value}' in '{label}' — chip may not have appeared"
                 )
             else:
-                print(f"           [chip-multiselect] not found: {result}")
+                log.debug("[chip-multiselect] not found", extra={"event": "chip_multiselect", "result": result})
         except Exception as e:
-            print(f"           [chip-multiselect] failed: {e}")
+            log.debug("[chip-multiselect] failed", extra={"event": "chip_multiselect", "error": str(e)})
         return None
 
     def _clear_chip(self, chip_text: str) -> str | None:
@@ -271,10 +265,10 @@ class IvaluaBrowserSession(BrowserSession):
             }}""")
             if result and result.get("removed"):
                 page.wait_for_timeout(400)
-                print(f"           [clear-chip] removed chip: {result['removed']!r}")
+                log.debug("[clear-chip] removed chip", extra={"event": "clear_chip", "removed": result['removed']})
                 return f"removed chip '{result['removed']}'"
         except Exception as e:
-            print(f"           [clear-chip] failed: {e}")
+            log.debug("[clear-chip] failed", extra={"event": "clear_chip", "error": str(e)})
         return None
 
     # ------------------------------------------------------------------
@@ -324,7 +318,7 @@ class IvaluaBrowserSession(BrowserSession):
                     // Verify it's now in viewport after scroll
                     const r = el.getBoundingClientRect();
                     el.click();
-                    return {{clicked: el.textContent.trim(), tag: el.tagName, visible: r.width > 0}};
+                    return {{clicked: el.textContent.trim().slice(0, 100), tag: el.tagName, visible: r.width > 0}};
                 }}
 
                 // Fallback: <td> cells in tbody with onclick (some Ivalua grids use td-level handlers)
@@ -340,12 +334,14 @@ class IvaluaBrowserSession(BrowserSession):
                     for (let i = 0; i < 4 && target && target !== document.body; i++) {{
                         if (target.onclick || target.tagName === 'A' || target.tagName === 'BUTTON') {{
                             target.click();
-                            return {{clicked: target.textContent.trim(), tag: target.tagName, via: 'walk-up'}};
+                            // Use search string, not target.textContent — ancestors like nav
+                            // buttons contain all descendant text (entire dropdown menus).
+                            return {{clicked: search, tag: target.tagName, via: 'walk-up'}};
                         }}
                         target = target.parentElement;
                     }}
                     td.click();
-                    return {{clicked: td.textContent.trim(), tag: 'TD', via: 'direct'}};
+                    return {{clicked: td.textContent.trim().slice(0, 100), tag: 'TD', via: 'direct'}};
                 }}
 
                 return null;
@@ -356,13 +352,18 @@ class IvaluaBrowserSession(BrowserSession):
                 tag = result.get("tag", "")
                 via = result.get("via", "")
                 page.wait_for_load_state("networkidle", timeout=10000)
-                print(f"           [result-row-link] clicked <{tag}>: {clicked!r} {via or ''}")
+                log.debug("[result-row-link] clicked element", extra={"event": "result_row_link", "tag": tag, "clicked": clicked, "via": via})
+                # Use the original search text as the selector value, not the resolved
+                # element's textContent. Walking up to a clickable ancestor (e.g. a nav
+                # button wrapping a dropdown) produces textContent that includes all
+                # descendant text — bookmark lists, request IDs, etc. — which is useless
+                # as a replay selector and inflates the fingerprint file massively.
                 self._last_selectors = [
-                    {"type": "text", "value": clicked, "successes": 1, "failures": 0}
+                    {"type": "text", "value": text[:100], "successes": 1, "failures": 0}
                 ]
                 return f"clicked result link '{clicked}'"
         except Exception as e:
-            print(f"           [result-row-link] failed: {e}")
+            log.debug("[result-row-link] failed", extra={"event": "result_row_link", "error": str(e)})
         return None
 
     # ------------------------------------------------------------------
@@ -429,17 +430,21 @@ class IvaluaBrowserSession(BrowserSession):
                 # conditional question groups (e.g. Emergency → 3 questions).
                 page.wait_for_timeout(2500)
                 item_text = result.get("text", "")
-                print(f"           [ivalua-listbox] clicked item: {item_text!r}")
+                log.debug("[ivalua-listbox] clicked item", extra={"event": "ivalua_listbox", "item_text": item_text})
                 # Store a text selector — listbox <li> items rarely have IDs,
                 # but text is stable and works for replay via get_by_text().
-                if item_text:
+                # Only store a text selector if it is short enough to be a stable,
+                # unambiguous match target. A long value means the includes() fallback
+                # matched a large container (e.g. a select2 wrapper whose textContent
+                # contains all option labels + embedded JS) — useless as a selector.
+                if item_text and len(item_text) <= 200:
                     self._last_selectors = [{"type": "text", "value": item_text,
                                              "successes": 1, "failures": 0}]
                 else:
                     self._last_selectors = []
                 return f"clicked '{desc}' (ivalua-listbox)"
         except Exception as e:
-            print(f"           [ivalua-listbox] failed: {e}")
+            log.debug("[ivalua-listbox] failed", extra={"event": "ivalua_listbox", "error": str(e)})
 
         # -- Browse list result table links --------------------------------
         # Record IDs (PO IDs, requisition IDs, etc.) appear as <a> links in
@@ -476,7 +481,7 @@ class IvaluaBrowserSession(BrowserSession):
                     if result:
                         return result
             except Exception as e:
-                print(f"           [result-row-link guard] failed: {e}")
+                log.debug("[result-row-link guard] failed", extra={"event": "result_row_link_guard", "error": str(e)})
 
         return None
 
@@ -504,7 +509,7 @@ class IvaluaBrowserSession(BrowserSession):
                         if btn.count() > 0 and btn.is_visible(timeout=500):
                             btn.click(timeout=1000)
                             page.wait_for_timeout(600)
-                            print(f"           [dismiss-modal] closed modal via '{btn_name}' button")
+                            log.debug("[dismiss-modal] closed modal", extra={"event": "dismiss_modal", "button": btn_name})
                             return
                     except Exception:
                         pass
@@ -587,15 +592,15 @@ class IvaluaBrowserSession(BrowserSession):
                 if result:
                     candidates = result.get("candidates", [])
                     clicked = result.get("clicked")
-                    print(f"           [autocomplete-click] attempt {attempt + 1}: {len(candidates)} candidates — {candidates[:10]}")
+                    log.debug("[autocomplete-click] attempt", extra={"event": "ivalua_listbox", "attempt": attempt + 1, "candidate_count": len(candidates), "candidates": candidates[:10]})
                     if clicked:
                         page.wait_for_timeout(2500)
-                        print(f"           [autocomplete-click] selected '{clicked}'")
+                        log.debug("[autocomplete-click] selected item", extra={"event": "ivalua_listbox", "clicked": clicked})
                         return clicked
             except Exception as e:
-                print(f"           [autocomplete-click] attempt {attempt + 1} error: {e}")
+                log.debug("[autocomplete-click] attempt error", extra={"event": "ivalua_listbox", "attempt": attempt + 1, "error": str(e)})
 
-        print(f"           [autocomplete-click] no item found for '{value}' after 8 s")
+        log.debug("[autocomplete-click] no item found after 8 s", extra={"event": "ivalua_listbox", "value": value})
         return None
 
     # ------------------------------------------------------------------
@@ -651,11 +656,17 @@ class IvaluaBrowserSession(BrowserSession):
                 let combobox = null;
                 let el = labelEl.nextElementSibling;
                 while (el) {{
-                    if (el.getAttribute('role') === 'combobox' || el.tagName === 'SELECT') {{
+                    // Skip aria-hidden elements — select2 hides the native <select>
+                    // with aria-hidden="true" and class="select2-hidden-accessible".
+                    // We want the visible custom combobox UI, not the hidden native one.
+                    const isHidden = el.getAttribute('aria-hidden') === 'true';
+                    if (!isHidden && (el.getAttribute('role') === 'combobox' || el.tagName === 'SELECT')) {{
                         combobox = el; break;
                     }}
-                    const cb = el.querySelector('[role="combobox"], select');
-                    if (cb) {{ combobox = cb; break; }}
+                    if (!isHidden) {{
+                        const cb = el.querySelector('[role="combobox"]:not([aria-hidden="true"]), select:not([aria-hidden="true"])');
+                        if (cb) {{ combobox = cb; break; }}
+                    }}
                     el = el.nextElementSibling;
                 }}
                 if (!combobox) {{
@@ -665,8 +676,9 @@ class IvaluaBrowserSession(BrowserSession):
                         let found = false;
                         for (const child of parent.children) {{
                             if (found) {{
-                                if (child.getAttribute('role') === 'combobox') {{ combobox = child; break; }}
-                                const cb = child.querySelector('[role="combobox"]');
+                                const notHidden = child.getAttribute('aria-hidden') !== 'true';
+                                if (notHidden && child.getAttribute('role') === 'combobox') {{ combobox = child; break; }}
+                                const cb = notHidden && child.querySelector('[role="combobox"]:not([aria-hidden="true"])');
                                 if (cb) {{ combobox = cb; break; }}
                             }}
                             if (child === labelEl || child.contains(labelEl)) found = true;
@@ -675,33 +687,69 @@ class IvaluaBrowserSession(BrowserSession):
                 }}
                 if (!combobox) return {{found: false, reason: 'no combobox after label'}};
 
-                // Step 3: find the searchbox inside the combobox
+                // Step 3: click the combobox to trigger widget initialisation — some
+                // frameworks (select2, chosen) only inject the search <input> into the
+                // DOM after the first click/open event.
+                combobox.click();
+
+                // Step 4: find the searchbox inside the combobox
                 const searchbox = combobox.querySelector(
                     '[role="searchbox"], input[type="search"], input[type="text"], input'
                 );
-                if (!searchbox) return {{found: false, reason: 'no searchbox inside combobox'}};
+
+                // Diagnostic: always return what was resolved so failures can be debugged
+                const comboboxTag = combobox.tagName;
+                const comboboxRole = combobox.getAttribute('role') || '';
+                const comboboxClass = combobox.className || '';
+                const comboboxChildCount = combobox.childElementCount;
+                if (!searchbox) return {{
+                    found: false,
+                    reason: 'no searchbox inside combobox',
+                    debug: {{
+                        labelTag: labelEl.tagName,
+                        labelText: labelEl.textContent.trim().slice(0, 50),
+                        comboboxTag, comboboxRole, comboboxClass: comboboxClass.slice(0, 80),
+                        comboboxChildCount,
+                        comboboxOuterHTML: combobox.outerHTML.slice(0, 300)
+                    }}
+                }};
 
                 const id = searchbox.id || '';
                 const name = searchbox.getAttribute('name') || '';
-                return {{found: true, id, name}};
+                const role = searchbox.getAttribute('role') || '';
+                const ariaControls = searchbox.getAttribute('aria-controls') || '';
+                return {{found: true, id, name, role, ariaControls}};
             }}""")
 
             if not result or not result.get("found"):
                 reason = result.get("reason", "unknown") if result else "js error"
-                print(f"           [select-filter] not found: {reason}")
+                debug = result.get("debug", {}) if result else {}
+                log.debug("[select-filter] not found", extra={"event": "select_filter", "reason": reason})
+                if debug:
+                    log.debug("[select-filter] debug info", extra={"event": "select_filter", "debug": debug})
                 return f"error: could not find filter '{filter_label}': {reason}"
 
             inp_id = result.get("id")
             inp_name = result.get("name")
-            print(f"           [select-filter] found searchbox id={inp_id!r} name={inp_name!r}")
+            inp_role = result.get("role")
+            inp_aria = result.get("ariaControls")
+            log.debug("[select-filter] found searchbox", extra={"event": "select_filter", "id": inp_id, "name": inp_name, "role": inp_role, "aria_controls": inp_aria})
 
-            # Step 4: click to open, type to search
+            # Step 5: click to open, type to search.
+            # Selector priority: id → name → role → aria-controls.
+            # role uses Playwright's native get_by_role() — W3C ARIA standard, more
+            # resilient than raw attribute selectors. aria-controls is last resort:
+            # also a standard attribute, always unique per widget, value read from DOM.
             if inp_id:
                 loc = page.locator(f"#{inp_id}").first
             elif inp_name:
                 loc = page.locator(f'input[name="{inp_name}"]').first
+            elif inp_role:
+                loc = page.get_by_role(inp_role).first
+            elif inp_aria:
+                loc = page.locator(f'input[aria-controls="{inp_aria}"]').first
             else:
-                return f"error: searchbox for '{filter_label}' has no id or name"
+                return f"error: searchbox for '{filter_label}' has no id, name, role, or aria-controls"
 
             loc.click(timeout=3000)
             page.wait_for_timeout(200)
@@ -709,10 +757,10 @@ class IvaluaBrowserSession(BrowserSession):
             page.wait_for_timeout(50)
             loc.press_sequentially(option_value, delay=80)
 
-            # Step 5: wait for autocomplete results and click the matching item
+            # Step 6: wait for autocomplete results and click the matching item
             clicked = self._click_autocomplete_item(option_value)
 
-            # Step 6: dismiss dropdown
+            # Step 7: dismiss dropdown
             try:
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(400)
@@ -725,7 +773,7 @@ class IvaluaBrowserSession(BrowserSession):
             return f"typed '{option_value}' in filter '{filter_label}' — item may not have appeared in dropdown"
 
         except Exception as e:
-            print(f"           [select-filter] failed: {e}")
+            log.debug("[select-filter] failed", extra={"event": "select_filter", "error": str(e)})
             return f"error: select_filter failed for '{filter_label}': {e}"
 
     # ------------------------------------------------------------------
@@ -821,7 +869,7 @@ class IvaluaBrowserSession(BrowserSession):
             if result and result.get("found"):
                 inp_id = result.get("id")
                 inp_name = result.get("name")
-                print(f"           [fill ivalua-autocomplete] id={inp_id!r} name={inp_name!r}")
+                log.debug("[fill ivalua-autocomplete] found input", extra={"event": "fill_field_strategy", "id": inp_id, "name": inp_name})
                 loc = (
                     page.locator(f"#{inp_id}").first
                     if inp_id
@@ -850,12 +898,12 @@ class IvaluaBrowserSession(BrowserSession):
                 self._last_selectors = self._extract_selectors(loc)
                 if clicked:
                     return f"filled '{label}' with '{value}' — selected '{clicked}' (ivalua-autocomplete)"
-                print(f"           [fill ivalua-autocomplete] typed but dropdown did not appear for '{value}' — XHR may not have fired")
+                log.debug("[fill ivalua-autocomplete] typed but dropdown did not appear — XHR may not have fired", extra={"event": "fill_field_strategy", "value": value})
                 return f"filled '{label}' with '{value}' (ivalua-autocomplete)"
             else:
-                print(f"           [fill ivalua-autocomplete] not found: {result}")
+                log.debug("[fill ivalua-autocomplete] not found", extra={"event": "fill_field_strategy", "result": result})
         except Exception as e:
-            print(f"           [fill ivalua-autocomplete] failed: {e}")
+            log.debug("[fill ivalua-autocomplete] failed", extra={"event": "fill_field_strategy", "error": str(e)})
         return None
 
     def _fill_combobox_aria(self, label: str, value: str) -> str | None:
@@ -877,7 +925,7 @@ class IvaluaBrowserSession(BrowserSession):
             if loc.count() == 0:
                 return None
 
-            print(f"           [fill combobox-aria] found combobox '{label}'")
+            log.debug("[fill combobox-aria] found combobox", extra={"event": "fill_field_strategy", "label": label})
 
             # --- Phase 1: click to open, check if static dropdown ---
             loc.click(timeout=2000)
@@ -898,7 +946,7 @@ class IvaluaBrowserSession(BrowserSession):
             if items_visible > 0:
                 # Static dropdown: options already visible — do NOT type.
                 # Return a message so the LLM knows to call read_page then click.
-                print(f"           [fill combobox-aria] static dropdown: {items_visible} items visible — skipping type")
+                log.debug("[fill combobox-aria] static dropdown — skipping type", extra={"event": "fill_field_strategy", "items_visible": items_visible})
                 self._last_selectors = self._extract_selectors(loc)
                 return (
                     f"opened dropdown '{label}' — {items_visible} options are visible. "
@@ -947,7 +995,7 @@ class IvaluaBrowserSession(BrowserSession):
                 return f"filled '{label}' with '{value}' — selected '{clicked}' (combobox-aria)"
             return f"filled '{label}' with '{value}' (combobox-aria)"
         except Exception as e:
-            print(f"           [fill combobox-aria] failed: {e}")
+            log.debug("[fill combobox-aria] failed", extra={"event": "fill_field_strategy", "error": str(e)})
         return None
 
     def _fill_date_end(self, slug: str, value: str) -> str | None:
@@ -995,16 +1043,16 @@ class IvaluaBrowserSession(BrowserSession):
                     if inp_id
                     else page.locator(f'input[name="{inp_name}"]').first
                 )
-                print(f"           [fill date-end] id={inp_id!r}")
+                log.debug("[fill date-end] found input", extra={"event": "fill_field_strategy", "id": inp_id})
                 loc.fill(value, timeout=2000)
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(300)
                 self._last_selectors = self._extract_selectors(loc)
                 return f"filled 'to' date with '{value}' (ivalua-date-end)"
             else:
-                print(f"           [fill date-end] not found: {result}")
+                log.debug("[fill date-end] not found", extra={"event": "fill_field_strategy", "result": result})
         except Exception as e:
-            print(f"           [fill date-end] failed: {e}")
+            log.debug("[fill date-end] failed", extra={"event": "fill_field_strategy", "error": str(e)})
         return None
 
 

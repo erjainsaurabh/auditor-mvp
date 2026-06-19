@@ -48,6 +48,50 @@ Status key: `✓ done` · `← current` · `○ pending`
 
 ---
 
+## Pattern inventory — machine-learned action priors
+
+- `○` **Tool-usage stats per step type**
+  - Track which tools the ReAct loop actually calls per `StepType` (existence, value, behavioral, etc.)
+  - After many runs: `behavioral → [navigate, click, fill_field, read_page]` with frequencies
+  - Feeds into LLM context for steps without a fingerprint: "for behavioral steps, typically use these tools"
+
+- `○` **Platform aria-pattern → tool mapping**
+  - On each successful ReAct run, record: aria pattern observed → tool called → succeeded
+  - Example: Ivalua `combobox[name~="..."]` → `select_option`; `grid` with rows → `click` first row link
+  - Stored per platform in `pattern_inventory.yaml`
+
+- `○` **Pattern-assisted fingerprint generation (core feature)**
+  - For steps with no fingerprint, query the inventory: step type + platform + keywords from description
+  - Generate a candidate action plan (ordered tool sequence) and inject as machine-generated hints
+  - LLM executes the plan → succeeds faster → fingerprint recorded on first run
+  - Sits between human hints and fingerprint replay in the execution lifecycle:
+    ```
+    hints (human, static) → pattern inventory (machine, dynamic) → fingerprint (exact replay)
+    ```
+  - Design needed: inventory schema, query logic (keyword match vs embedding similarity), confidence threshold for when to inject vs stay silent
+
+- `○` **Pattern inventory — verb normalisation**
+  - Currently each verb is stored as-is (`select`, `choose`, `pick`, `set`, `enter` all create separate keys)
+  - Once real runs accumulate, review which verbs cluster naturally and build a normalisation map
+  - Examples expected: `choose/pick → select`, `enter/type/input → fill`, `open/expand → click`
+  - Do NOT implement until patterns from real runs are available — normalisation map must be data-driven, not guessed
+
+---
+
+## Multi-application support
+
+- `○` **Multi-app config — holistic end-to-end testing across applications**
+  - Today `config.yaml` is a single flat config (one `base_url`, one `platform`, one credential set)
+  - Goal: allow flows targeting different apps (e.g. Ivalua + Salesforce + ServiceNow) to run in one session without separate config files or separate invocations
+  - Design options to evaluate:
+    - `apps:` block in `config.yaml` — named app entries each with their own `base_url`, `platform`, `auth`, `strategy_stats_file`
+    - Flow YAML declares `app: ivalua` at the flow level; `run.py` switches `BrowserSession` and `StrategyStats` between flows
+    - Cross-app flows: a test condition can navigate across app boundaries (e.g. create record in App A, verify downstream effect in App B)
+  - Requires: per-app `BrowserSession` lifecycle (separate pages or separate browser contexts), per-app login pre-step, per-app `StrategyStats` and fingerprint scoping
+  - Enables: holistic regression suites that span procurement → ERP → CRM without manual stitching
+
+---
+
 ## Spec gaps to address before V2.0
 
 These are in `AUDITOR_AGENT_FRAMEWORK.md` but not yet implemented:

@@ -12,9 +12,8 @@ load_dotenv(Path(__file__).parent / ".env", override=True)
 import yaml
 from rich.console import Console
 
-from auditor.logger import get_logger, setup_logging
-# setup_logging() is a no-op if already called by api.py; safe to call here
-# so that `python run.py` still produces log output.
+from auditor.logger import get_logger, setup_logging, setup_logging_from_config
+# Bootstrap with file logging immediately; Seq is wired later once config.yaml is loaded.
 setup_logging(log_file=Path(__file__).parent / "auditor.log")
 log = get_logger("run")
 
@@ -24,6 +23,7 @@ from auditor.graph import build_condition_graph, cascade_condition_failure, cond
 from auditor.llm_client import LLMClient
 from auditor.loader import ConditionStatus, load_flows
 from auditor.report import print_summary, write_report
+from auditor.pattern_inventory import PatternInventory
 from auditor.strategy_stats import StrategyStats
 from auditor.tools import BrowserSession
 
@@ -59,6 +59,8 @@ def run_audit(
     log.info("run_audit starting — yamls=%s data=%s", yaml_paths, data_path)
     config = yaml.safe_load(config_path.read_text())
     log.debug("config loaded from %s", config_path)
+    # Wire Seq now that config is available — safe to call even if already configured
+    setup_logging_from_config(config, log_file=Path(__file__).parent / "auditor.log")
     if os.getenv("AUDITOR_HEADLESS", "").lower() in ("1", "true", "yes"):
         config["app"]["headless"] = True
         log.info("headless mode forced by AUDITOR_HEADLESS env var")
@@ -131,6 +133,10 @@ def run_audit(
     stats = StrategyStats(stats_path, platform=platform)
     console.print(f"  [dim]strategy stats: {stats_path} (platform={platform})[/dim]")
 
+    inventory_path = fingerprints_dir / "pattern_inventory.yaml"
+    inventory = PatternInventory(inventory_path, platform=platform)
+    console.print(f"  [dim]pattern inventory: {inventory_path} (platform={platform})[/dim]")
+
     all_evidence: list[dict] = []
 
     with _make_session(config["app"]) as session:
@@ -155,6 +161,7 @@ def run_audit(
                 max_actions=config["agent"]["max_actions_per_claim"],
                 session_data=session_data,
                 fp_store=fp_router,
+                pattern_inventory=inventory,
             )
 
             all_evidence.extend(evidence_records)
