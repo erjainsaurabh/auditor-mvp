@@ -75,6 +75,9 @@ def dispatch(
         case "press_key":
             return session.press_key(args["key"])
 
+        case "click_by_id":
+            return session.click_by_id(args["element_id"])
+
         case "get_field_options":
             return session.get_field_options(args["field_label"])
 
@@ -85,7 +88,9 @@ def dispatch(
             return result
 
         case "select_filter":
-            result = session.select_filter(args["filter_label"], args["option_value"])
+            # Accept both "container_attribute" (current) and "scoped_selector" (legacy alias)
+            container_attr = args.get("container_attribute") or args.get("scoped_selector", "")
+            result = session.select_filter(args["filter_label"], args["option_value"], container_attr)
             if not result.startswith("error"):
                 session._last_interacted_label = args["filter_label"].rstrip(" *").strip()
             return result

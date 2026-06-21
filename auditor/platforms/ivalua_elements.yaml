@@ -24,12 +24,16 @@ panel_open_button:
 autocomplete_dropdown:
   description: "Visible dropdown container for autocomplete and chip-multiselect fields"
   selectors:
+    - 'ul.select2-results__options'
+    - 'div.ss-content .ss-list'
+    - '.ss-list'
     - 'ul[role="listbox"]'
     - '[role="listbox"]'
     - '.iv-menu-container ul'
     - '.scrolling.menu.visible'
     - '.scrolling.menu'
     - '.iv-menu-container'
+
 
 field_label:
   description: "Label element for an Ivalua form field"

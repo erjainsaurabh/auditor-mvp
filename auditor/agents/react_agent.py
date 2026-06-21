@@ -113,6 +113,7 @@ def run_test_condition(
                 step.expected,
                 getattr(step, "navigation", ""),
                 list(step.data.keys()),
+                step.hints,
             )
             if fp_for_step.step_hash != current_hash:
                 console.print(
@@ -474,15 +475,32 @@ def _react_loop(
     }
 
     # Pre-load page state — reuse snapshot already taken for pattern inventory query
-    # if available, otherwise call read_page now. Appended to the user message so
-    # the LLM starts with full page context and doesn't waste its first action.
+    # if available, otherwise call read_page now.
+    # Injected as a fake assistant tool_use + tool_result pair so the LLM sees it
+    # as an already-completed read_page call and skips calling it again as its first action.
     initial_snapshot = preloaded_snapshot if preloaded_snapshot else session.read_page()
     last_snapshot = initial_snapshot
     evidence.log_action("read_page({})", initial_snapshot)
-    snapshot_injected = False
-    if messages and messages[-1]["role"] == "user":
-        messages[-1]["content"] += f"\n\nCurrent page state:\n{initial_snapshot}"
-        snapshot_injected = True
+    # Inject as a fake tool_use + tool_result pair in the same OpenAI-compat format
+    # used by the live loop so LiteLLM accepts it without format mismatch.
+    # The LLM sees read_page as already-called and skips it as its first action.
+    _preload_id = "toolu_preload_read_page"
+    messages.append({
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{
+            "id": _preload_id,
+            "type": "function",
+            "function": {"name": "read_page", "arguments": "{}"},
+        }],
+    })
+    messages.append({
+        "role": "tool",
+        "tool_call_id": _preload_id,
+        "content": initial_snapshot,
+    })
+    read_page_ids.append(_preload_id)
+    snapshot_injected = True
     snap_lower = initial_snapshot.lower()
     # Extract short quoted strings from hints (e.g. "Campaign", "--") plus
     # words from step description as subject keywords to check in the snapshot.
@@ -495,7 +513,7 @@ def _react_loop(
         "step_id": step.id,
         "url": session.current_url(),
         "reused_from_query": preloaded_snapshot is not None,
-        "injected_into_prompt": snapshot_injected,
+        "injected_as_tool_result": snapshot_injected,
         "snapshot_chars": len(initial_snapshot),
         "keywords_in_snapshot": {kw: (kw.lower() in snap_lower) for kw in _keywords},
     })
@@ -692,6 +710,7 @@ def _react_loop(
                         step.expected,
                         getattr(step, "navigation", ""),
                         list(step.data.keys()),
+                        step.hints,
                     )
                     fp = StepFingerprint(
                         step_id=step.id,

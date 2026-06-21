@@ -40,6 +40,8 @@ class LLMClient:
         self._cache: bool = config.get("cache_system_prompt", True)
         self._log_prompts: bool = config.get("log_llm_prompts", True)
         self._log_responses: bool = config.get("log_llm_responses", True)
+        self._log_msg_max: int = config.get("log_message_max_chars", 2000)   # -1 = unlimited
+        self._log_resp_max: int = config.get("log_response_max_chars", 3000) # -1 = unlimited
 
         system_text = _SYSTEM_PROMPT
         if platform_guidance:
@@ -76,7 +78,10 @@ class LLMClient:
                 # tool result or multi-part — extract text portions
                 parts = [p.get("text", str(p)) for p in content if isinstance(p, dict)]
                 content = " | ".join(parts)
-            conversation.append({"role": role, "content": str(content)[:2000]})
+            text = str(content)
+            if self._log_msg_max != -1 and len(text) > self._log_msg_max:
+                text = text[:self._log_msg_max] + f" … [TRUNCATED — {len(text)} chars total, showing {self._log_msg_max}]"
+            conversation.append({"role": role, "content": text})
 
         log.debug(
             "llm_request",
@@ -110,9 +115,12 @@ class LLMClient:
                 "args": tc.function.arguments,  # raw JSON string
             }
         else:
+            text = msg.content or ""
+            if self._log_resp_max != -1 and len(text) > self._log_resp_max:
+                text = text[:self._log_resp_max] + f" … [TRUNCATED — {len(text)} chars total, showing {self._log_resp_max}]"
             response_summary = {
                 "type": "text",
-                "content": (msg.content or "")[:3000],
+                "content": text,
             }
 
         usage = getattr(response, "usage", None)

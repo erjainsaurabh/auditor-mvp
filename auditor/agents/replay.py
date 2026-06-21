@@ -181,6 +181,22 @@ class FingerprintReplayer:
             elif tool == "read_page":
                 pass  # skip observational reads during replay
 
+            elif tool == "select_filter":
+                filter_label = args.get("filter_label", "")
+                raw_value = args.get("option_value", "")
+                option_value = re.sub(
+                    r"\{\{(\w+)\}\}",
+                    lambda m: step.data.get(m.group(1), sd.get(m.group(1), m.group(0))),
+                    raw_value,
+                )
+                container_attr = args.get("container_attribute") or args.get("scoped_selector", "")
+                result = session.select_filter(filter_label, option_value, container_attr)
+                evidence.log_action(f"select_filter({filter_label!r}, {option_value!r}) [replay]", result)
+                if result.startswith("error"):
+                    log.debug("replay failed — select_filter error", extra={"event": "replay_fail", "step_id": step.id, "tool": "select_filter", "result": result[:200]})
+                    return None
+                session._last_interacted_label = filter_label.rstrip(" *").strip()
+
             elif tool == "select_option":
                 field_label = args.get("field_label", "")
                 raw_value = args.get("option_value", "")
@@ -217,9 +233,13 @@ class FingerprintReplayer:
                             result = replay_selector("click", action.selectors, args, session)
                         if not result.startswith("error"):
                             download = dl_info.value
-                            import tempfile
                             from pathlib import Path as _Path
-                            dest_dir = _Path(tempfile.mkdtemp())
+                            if session.run_id:
+                                dest_dir = _Path("evidence") / session.run_id / "downloads"
+                                dest_dir.mkdir(parents=True, exist_ok=True)
+                            else:
+                                import tempfile
+                                dest_dir = _Path(tempfile.mkdtemp())
                             dest = dest_dir / (download.suggested_filename or "download")
                             download.save_as(str(dest))
                             token = f"downloaded_file_{len(session._downloads) + 1}"

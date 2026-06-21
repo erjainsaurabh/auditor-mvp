@@ -39,6 +39,7 @@ except Exception:
 log = get_logger("api")
 
 from run import run_audit
+from auditor.storage.object_store import upload_run_downloads
 
 # ---------------------------------------------------------------------------
 # Job store — in-memory, sufficient for single-instance deployments
@@ -168,6 +169,11 @@ def _execute(job: _Job, yaml_paths: list[Path], data_path: Path | None) -> None:
             "run %s — done: result=%s total=%d verified=%d failed=%d blocked=%d",
             job.run_id, result, total, verified, failed, blocked,
         )
+        # Upload any downloaded files to object storage and embed presigned URLs.
+        artifacts = upload_run_downloads(job.run_id, _config or {})
+        if artifacts:
+            report["artifacts"] = artifacts
+
         with _jobs_lock:
             job.report = report
             job.summary = summary

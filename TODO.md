@@ -6,7 +6,7 @@ Status key: `✓ done` · `← current` · `○ pending`
 
 ## Next Up
 
-- `←` **V1.4 — LLM claim extraction**
+- `←` **V1.4 — LLM claim extraction** *(current)*
   - Paste spec text → LLM generates `claims.yaml`
   - Replaces manual YAML authoring; everything downstream stays identical
 
@@ -108,6 +108,7 @@ These are in `AUDITOR_AGENT_FRAMEWORK.md` but not yet implemented:
 - `✓` **V1.1** — flows → test conditions → steps hierarchy, shared LLM context within a test condition, message pruning
 - `✓` **V1.2** — session state capture (`current_url`, `page_title`, `url_segment:N`), data handoff between steps
 - `✓` **V1.3** — Execution fingerprint layer: selector recording, three-tier replay, confidence matrix, drift detection, dynamic-ID filtering at recording time
+- `✓` **Bug: hints excluded from step_hash** — `hints` added to `step_definition_hash()` signature in `fingerprint.py`; both call sites in `react_agent.py` updated; changing hints now correctly invalidates the fingerprint and forces a ReAct re-run
 - `✓` **Test data decoupling** — `{{key}}` placeholders in claims.yaml resolved from `test_data.yaml`; `--data` flag + auto-detection in `run.py`
 - `✓` **Claims spec cleanup** — all `expected` fields rewritten to BA-readable natural language outcomes; tool syntax, nav directives, LLM guardrails moved to system prompt
 - `✓` **System prompt hardening** — SCOPE RULE, BROWSER STATE RULE, BEHAVIORAL CLAIM RULE added; interaction rules generalized (no hardcoded values)

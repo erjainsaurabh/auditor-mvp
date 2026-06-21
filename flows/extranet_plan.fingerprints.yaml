@@ -1,0 +1,208 @@
+steps:
+  f69a7349-edd6-4dde-a781-1a22ad3c00fe:
+    step_id: f69a7349-edd6-4dde-a781-1a22ad3c00fe
+    source_file: extranet_plan
+    recorded_at: '2026-06-21T04:27:49.875728+00:00'
+    run_id: run_1727a8c8
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: http://project.ivalua.com
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully navigated to http://project.ivalua.com and the extranet
+          credentials page is displayed. The page shows the Ivalua extranet interface
+          with an "Identification" section containing Login and Password fields, along
+          with a Sign in button and related links. This matches the expected outcome
+          of displaying the extranet credentials page.
+      selectors: []
+      assertions:
+      - /page/prj/index
+      - Homepage
+      - Identification
+    step_hash: 821750b3dece
+  8067d41d-5fc7-44a1-b7e8-d64282402d24:
+    step_id: 8067d41d-5fc7-44a1-b7e8-d64282402d24
+    source_file: extranet_plan
+    recorded_at: '2026-06-21T04:28:03.736530+00:00'
+    run_id: run_1727a8c8
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Login
+        value: '{{User}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="idlogin"]
+        successes: 2
+        failures: 0
+      - type: xpath_structural
+        value: //form/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Password
+        value: '{{Password}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="inputPassword"]
+        successes: 2
+        failures: 0
+      - type: xpath_structural
+        value: //form/div/div[2]/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: Sign in
+        element_type: button
+      selectors:
+      - type: xpath_structural
+        value: //form/div/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Sign in
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Login was successful using the provided credentials (saurabh.y.jain@accenture.com).
+          The browser navigated to https://project.ivalua.com/page/prj/index_extranet,
+          which is the extranet homepage. The page displays the authenticated user
+          interface with navigation buttons, user profile (Saurabh J.), and the homepage
+          table content, confirming the extranet home page is displayed.
+      selectors: []
+      assertions:
+      - /page/prj/index_extranet
+      - Homepage
+    step_hash: dcd4d752409d
+  29748b9a:
+    step_id: 29748b9a
+    source_file: extranet_plan
+    recorded_at: '2026-06-19T23:42:22.057052+00:00'
+    run_id: run_78cb355c
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click
+      args:
+        element_description: Requests
+        element_type: button
+      selectors:
+      - type: text
+        value: Requests
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: navigate
+      args:
+        target: https://project.ivalua.com/page/prj/req_browse#
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully navigated to the requests browse page (https://project.ivalua.com/page/prj/req_browse#).
+          The page displays the request manage interface with comprehensive search
+          and filter options including Priority, Severity, Status, Project, Module,
+          Author, Responsible, Assigned to, Campaign, date range filters, and more.
+          The page also shows a results table with 3,863 requests and pagination controls.
+          All the expected elements for a request management page are present and
+          visible.
+      selectors: []
+      assertions:
+      - /page/prj/req_browse
+      - Requests
+    step_hash: 949cf436f567
+  f7665589-0e9d-4472-8c2e-617af70721f1:
+    step_id: f7665589-0e9d-4472-8c2e-617af70721f1
+    source_file: extranet_plan
+    recorded_at: '2026-06-21T04:29:15.788730+00:00'
+    run_id: run_1727a8c8
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: download_file
+      args:
+        element_description: Excel extract
+      selectors:
+      - type: xpath
+        value: //*[@id="export_js"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: //form/div[2]/div/div/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Excel extract
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Excel extract button was successfully clicked and a file (extract.xlsx,
+          41,495 bytes) was downloaded. The page displayed 3,862 rows of request data,
+          and the Excel file was generated to contain all those requests. The download
+          was confirmed by the system returning a download token.
+      selectors: []
+      assertions:
+      - /page/prj/req_browse
+      - Requests
+    step_hash: c7a43e1751a3
+  98fcedd0-f53d-4af8-8cdf-4c9d15872a3c:
+    step_id: 98fcedd0-f53d-4af8-8cdf-4c9d15872a3c
+    source_file: extranet_plan
+    recorded_at: '2026-06-21T11:49:28.705244+00:00'
+    run_id: run_3bf19078
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: select_filter
+      args:
+        filter_label: Campaign
+        option_value: 'R7 - NYC Accenture SIT: PASS 1'
+        container_attribute: data-select2-id=33
+      selectors: []
+      assertions: []
+    - tool: select_filter
+      args:
+        filter_label: Campaign
+        option_value: 'R7 - NYC Accenture SIT: PASS 2'
+        container_attribute: data-select2-id=33
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Both campaigns have been successfully selected in the Campaign
+          combobox. The page snapshot clearly shows both "R7 - NYC Accenture SIT:
+          PASS 1" and "R7 - NYC Accenture SIT: PASS 2" as listitem elements within
+          the Campaign combobox, confirming they are both selected. The expected outcome
+          of having both campaigns selected in the combo box has been achieved.'
+      selectors: []
+      assertions:
+      - /page/prj/req_browse
+      - Requests
+      - 'R7 - NYC Accenture SIT: PASS 1'
+      - 'R7 - NYC Accenture SIT: PASS 2'
+    step_hash: 6cc544f22034

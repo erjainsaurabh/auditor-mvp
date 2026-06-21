@@ -31,6 +31,8 @@ class BrowserSession:
     # Optional strategy stats — set by run.py after session creation.
     # When present, click/fill_field strategies are ordered by historical win rate.
     _stats: StrategyStats | None = field(default=None, init=False, repr=False)
+    # run_id is used to persist downloads under evidence/{run_id}/downloads/
+    run_id: str = ""
     # Tracks files downloaded during this session — token → local Path
     _downloads: dict[str, Path] = field(default_factory=dict, init=False, repr=False)
 
@@ -587,7 +589,7 @@ class BrowserSession:
             if radio_id is not None:
                 page.wait_for_timeout(800)
                 try:
-                    loc = page.locator(f"#{radio_id}").first
+                    loc = page.locator(f'xpath=//*[@id="{radio_id}"]').first
                     self._last_selectors = self._extract_selectors(loc)
                 except Exception:
                     pass
@@ -861,6 +863,41 @@ class BrowserSession:
         except Exception as e:
             return f"error pressing key '{key}': {e}"
 
+    def click_by_id(self, element_id: str) -> str:
+        """Click an element by its HTML id attribute using XPath.
+
+        Safe for ids containing special CSS characters (brackets, dots, colons)
+        that would break a CSS #id selector. XPath [@id="..."] handles them fine.
+        Use this when the aria snapshot has no accessible name for the element
+        but you know its id from the page HTML or a hint.
+        """
+        xpath = f'//*[@id="{element_id}"]'
+        try:
+            loc = self._page.locator(f"xpath={xpath}").first
+            if loc.count() == 0:
+                return f"error: no element found with id='{element_id}'"
+            loc.click(timeout=5000)
+            self._page.wait_for_timeout(400)
+            self._last_interacted_label = element_id
+            self._last_selectors = [{"type": "xpath", "value": xpath, "successes": 1, "failures": 0}]
+            return f"clicked element with id='{element_id}'"
+        except Exception as e:
+            # JS fallback for elements that don't pass Playwright actionability checks
+            try:
+                clicked = self._page.evaluate(f"""() => {{
+                    const el = document.getElementById("{element_id}");
+                    if (el) {{ el.click(); return true; }}
+                    return false;
+                }}""")
+                if clicked:
+                    self._page.wait_for_timeout(400)
+                    self._last_interacted_label = element_id
+                    self._last_selectors = [{"type": "xpath", "value": xpath, "successes": 1, "failures": 0}]
+                    return f"clicked element with id='{element_id}' (js fallback)"
+            except Exception:
+                pass
+            return f"error clicking id='{element_id}': {e}"
+
     def get_field_options(self, field_label: str) -> str:
         label = field_label.rstrip(" *").strip()
         try:
@@ -996,7 +1033,11 @@ class BrowserSession:
                     return result
 
             download = download_info.value
-            dest_dir = Path(tempfile.mkdtemp())
+            if self.run_id:
+                dest_dir = Path("evidence") / self.run_id / "downloads"
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                dest_dir = Path(tempfile.mkdtemp())
             dest = dest_dir / (download.suggested_filename or "download")
             download.save_as(str(dest))
 
@@ -1013,7 +1054,7 @@ class BrowserSession:
         except Exception as e:
             return f"error: download failed for '{desc}': {e}"
 
-    def select_filter(self, filter_label: str, option_value: str) -> str:
+    def select_filter(self, filter_label: str, option_value: str, container_attribute: str = "") -> str:
         """Stub — overridden by platform adapters that support unlabeled filter comboboxes."""
         return f"error: select_filter not supported by this platform adapter (label='{filter_label}')"
 

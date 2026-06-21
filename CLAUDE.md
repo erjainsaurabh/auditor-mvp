@@ -280,47 +280,28 @@ the stored selectors do the actual work.
 
 ---
 
-## Current build phase: V1.2
+## Current build phase: V1.4
 
 ```
-MVP ✓   Manual YAML claims, flat claim list, single ReAct loop per claim
+MVP  ✓  Manual YAML claims, flat claim list, single ReAct loop per claim
 V1.1 ✓  Simple feature flows — ordered steps, shared context within a step
 V1.2 ✓  Session state + data handoff between steps
-V1.3 ←  Execution fingerprint layer — selector recording, confidence matrix, drift detection
-V1.4    LLM claim extraction from pasted spec text
+V1.3 ✓  Execution fingerprint layer — selector recording, three-tier replay, confidence matrix, drift detection
+V1.4 ←  LLM claim extraction from pasted spec text
 V1.5    Word/PDF parsing feeding into LLM extraction
 V1.6    SaaS DOM simplification (Salesforce Lightning, ServiceNow)
 V2.0    Full framework — two-level graph, HTML report, visual diffing, PostgreSQL
 ```
 
-### V1.2 scope
-- Steps declare `input` (keys consumed from session) and `output_capture` (keys produced)
-- `output_capture` strategies: `current_url`, `page_title`, `url_segment:N`
-- URL/title captured from the last `read_page` result in message history at `verify_claim` time
-- Captured data passed into the next step's LLM context as navigation hints
-- Steps with `input` keys log their received session data at startup
-- Each step still starts a fresh LLM conversation (context not shared across steps)
-- No test data cleanup — manual for now
+### V1.3 scope (completed)
+- Three-tier replay: Tier 1 (primary selector, no LLM) → Tier 2 (alt selectors by confidence) → Tier 3 (full ReAct)
+- Fingerprint recorded after first successful ReAct run — exact DOM selectors (xpath, aria, css) + assertions
+- `step_hash` (SHA-1 of description + expected + navigation + data_keys + hints) — fingerprint auto-invalidated when YAML changes
+- Confidence matrix per selector: `successes / (successes + failures)`; drift flagged when confidence < 0.7
+- Dynamic-ID filtering at recording time — 5+ digit sequences skipped as assertions
+- `hints` included in the step hash — changing hints invalidates the fingerprint and forces a fresh ReAct run
 
-### Step schema (V1.2)
-
-```yaml
-- id: step_002
-  goal: "Open the first FCR record from the list"
-  depends_on: [step_001]
-  output_capture:
-    - key: record_url
-      strategy: current_url      # captured from last read_page at verify_claim time
-  claims: [...]
-
-- id: step_003
-  goal: "Verify the FCR record detail page displays key fields"
-  depends_on: [step_002]
-  input: [record_url]            # injected into LLM nav context at step start
-  claims: [...]
-```
-
-### Still excluded (V1.3+)
+### Still excluded (V1.4+)
 - LLM claim extraction from spec text
 - Word/PDF spec parsing
 - PostgreSQL

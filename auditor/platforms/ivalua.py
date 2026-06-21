@@ -215,7 +215,7 @@ class IvaluaBrowserSession(BrowserSession):
 
             if result and result.get("found"):
                 inp_id = result.get("id")
-                loc = page.locator(f"#{inp_id}").first if inp_id else None
+                loc = page.locator(f'xpath=//*[@id="{inp_id}"]').first if inp_id else None
                 if not loc:
                     return None
                 loc.click(timeout=2000)
@@ -522,59 +522,95 @@ class IvaluaBrowserSession(BrowserSession):
         except Exception:
             pass
 
-    def _click_autocomplete_item(self, value: str) -> str | None:
-        """
-        Ivalua-specific: after typing into an autocomplete field, poll for a
-        matching dropdown item and click it atomically (up to 8 s, 1 s per try).
+    def _click_autocomplete_item(self, value: str, max_attempts: int = 4, scoped_selectors: list[str] | None = None) -> str | None:
+        """Poll for a matching dropdown item and click it.
 
-        Uses getBoundingClientRect for visibility — offsetParent is null for
-        absolutely-positioned dropdowns in headless Chrome even when the element
-        is visually present, so offsetParent checks always fail in Docker/CI.
+        Polls up to max_attempts times (1 s apart). Gives up early if the
+        visible candidate list is stable for 2 consecutive polls — means the
+        dropdown is not loading new results and continuing to wait is pointless.
 
-        Match strategy (in priority order, all case-insensitive):
-          1. Exact match       — "Emergency" → "Emergency"
-          2. startsWith match  — "Department" → "Department of Finance"
-          3. includes match    — "yard" → '"D" YARD INTERNATIONAL, INC'
+        scoped_selectors: if provided, only search these container selectors.
+          Use this to restrict search to the widget that was just opened (e.g.
+          only 'ul.select2-results__options' for a select2 widget) so unrelated
+          dropdowns on the page are never accidentally clicked.
 
-        Searches ALL li and [role="option"] elements inside visible dropdown
-        containers resolved from the registry — the Ivalua dropdown structure
-        varies across widget types and versions, and the only reliable marker
-        is the item text itself.
+        Match strategy (case-insensitive, in priority order):
+          1. Exact match
+          2. startsWith match
+          3. includes match
         """
         page = self._page
         js_value = value.replace("\\", "\\\\").replace('"', '\\"').lower()
-        container_selectors = json.dumps(self._get_selectors('autocomplete_dropdown'))
+        if scoped_selectors:
+            container_selectors = json.dumps(scoped_selectors)
+        else:
+            container_selectors = json.dumps(self._get_selectors('autocomplete_dropdown'))
 
-        for attempt in range(8):
+        prev_visible_texts: list[str] = []
+        stable_count = 0
+
+        for attempt in range(max_attempts):
             page.wait_for_timeout(1000)
             try:
                 result = page.evaluate(f"""() => {{
                     const search = "{js_value}";
-
-                    // ONLY search inside visible dropdown containers — never scan the
-                    // full page DOM, which picks up navigation menus and hidden elements.
                     const containerSelectors = {container_selectors};
+
+                    const getXPath = (el) => {{
+                        const parts = [];
+                        while (el && el.nodeType === 1) {{
+                            let idx = 1;
+                            let sib = el.previousElementSibling;
+                            while (sib) {{ if (sib.tagName === el.tagName) idx++; sib = sib.previousElementSibling; }}
+                            parts.unshift(el.tagName.toLowerCase() + (idx > 1 ? `[${{idx}}]` : ''));
+                            el = el.parentElement;
+                            if (parts.length >= 5) {{ parts.unshift('...'); break; }}
+                        }}
+                        return '/' + parts.join('/');
+                    }};
+
                     let candidates = [];
+                    let matchedContainers = [];
+                    // Search containers in priority order — stop at the first container
+                    // that has visible items. This prevents cross-container contamination
+                    // (e.g. an always-visible saved-searches listbox matching after the
+                    // real results container). autocomplete_dropdown selector order encodes priority.
                     for (const sel of containerSelectors) {{
                         const containers = document.querySelectorAll(sel);
+                        let containerCandidates = [];
                         for (const c of containers) {{
                             const rect = c.getBoundingClientRect();
                             if (rect.width === 0 && rect.height === 0) continue;
-                            // Container is visible — collect its items
-                            const items = Array.from(c.querySelectorAll(
-                                'li, [role="option"], a, span'
-                            ));
-                            candidates.push(...items);
+                            matchedContainers.push({{
+                                selector: sel,
+                                cls: (c.className || '').slice(0, 60),
+                                xpath: getXPath(c),
+                            }});
+                            containerCandidates.push(...Array.from(c.querySelectorAll(
+                                'li, [role="option"], div.ss-option, a, span'
+                            )));
+                        }}
+                        // Only use this container group if it has visible items
+                        const visibleInGroup = containerCandidates.filter(el => {{
+                            const r = el.getBoundingClientRect();
+                            return r.width > 0 && r.height > 0;
+                        }});
+                        if (visibleInGroup.length > 0) {{
+                            candidates = [...new Set(containerCandidates)];
+                            break;
                         }}
                     }}
-                    // Deduplicate by DOM reference
-                    candidates = [...new Set(candidates)];
 
                     const candidateInfo = candidates.map(el => {{
                         const text = (el.textContent || '').trim().substring(0, 60);
                         const rect = el.getBoundingClientRect();
-                        return text + (rect.width > 0 && rect.height > 0 ? ' [visible]' : ' [hidden]');
+                        const vis = rect.width > 0 && rect.height > 0 ? '[visible]' : '[hidden]';
+                        return `${{text}} ${{vis}} xpath=${{getXPath(el)}}`;
                     }});
+
+                    const visibleTexts = candidates
+                        .filter(el => {{ const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }})
+                        .map(el => (el.textContent || '').trim().substring(0, 60));
 
                     for (const el of candidates) {{
                         const text = (el.textContent || '').trim();
@@ -582,199 +618,324 @@ class IvaluaBrowserSession(BrowserSession):
                         if (textLower === search || textLower.startsWith(search) || textLower.includes(search)) {{
                             const rect = el.getBoundingClientRect();
                             if (rect.width > 0 && rect.height > 0) {{
-                                el.click();
-                                return {{clicked: text, candidates: candidateInfo}};
+                                // Return coordinates instead of el.click() — select2 needs real mousedown/mouseup
+                                return {{
+                                    clicked: text,
+                                    clickX: rect.left + rect.width / 2,
+                                    clickY: rect.top + rect.height / 2,
+                                    candidates: candidateInfo,
+                                    matchedContainers,
+                                    visibleTexts
+                                }};
                             }}
                         }}
                     }}
-                    return {{clicked: null, candidates: candidateInfo}};
+                    return {{clicked: null, candidates: candidateInfo, matchedContainers, visibleTexts}};
                 }}""")
                 if result:
                     candidates = result.get("candidates", [])
                     clicked = result.get("clicked")
-                    log.debug("[autocomplete-click] attempt", extra={"event": "ivalua_listbox", "attempt": attempt + 1, "candidate_count": len(candidates), "candidates": candidates[:10]})
+                    click_x = result.get("clickX")
+                    click_y = result.get("clickY")
+                    containers = result.get("matchedContainers", [])
+                    visible_texts = result.get("visibleTexts", [])
+
+                    log.debug("[autocomplete-click] attempt", extra={
+                        "event": "ivalua_listbox",
+                        "attempt": attempt + 1,
+                        "candidate_count": len(candidates),
+                        "visible_count": len(visible_texts),
+                        "matched_containers": containers,
+                        "candidates": candidates[:10],
+                    })
+
                     if clicked:
+                        if click_x is not None and click_y is not None:
+                            # Native mouse click fires mousedown/mouseup/click — required by select2
+                            page.mouse.click(click_x, click_y)
                         page.wait_for_timeout(2500)
-                        log.debug("[autocomplete-click] selected item", extra={"event": "ivalua_listbox", "clicked": clicked})
+                        log.debug("[autocomplete-click] selected item", extra={"event": "ivalua_listbox", "clicked": clicked, "x": click_x, "y": click_y})
                         return clicked
+
+                    # Early exit if visible candidates unchanged — list is not loading
+                    if visible_texts == prev_visible_texts:
+                        stable_count += 1
+                        if stable_count >= 2:
+                            log.debug("[autocomplete-click] stable list, giving up early", extra={
+                                "event": "ivalua_listbox", "attempt": attempt + 1, "visible": visible_texts
+                            })
+                            return None
+                    else:
+                        stable_count = 0
+                    prev_visible_texts = visible_texts
+
             except Exception as e:
                 log.debug("[autocomplete-click] attempt error", extra={"event": "ivalua_listbox", "attempt": attempt + 1, "error": str(e)})
 
-        log.debug("[autocomplete-click] no item found after 8 s", extra={"event": "ivalua_listbox", "value": value})
+        log.debug("[autocomplete-click] no item found", extra={"event": "ivalua_listbox", "value": value, "attempts": max_attempts})
         return None
 
     # ------------------------------------------------------------------
-    # select_filter — Ivalua unlabeled combobox + searchbox pattern
+    # select_filter — filter panel combobox with no aria-label
     # ------------------------------------------------------------------
 
-    def select_filter(self, filter_label: str, option_value: str) -> str:
-        """Select a value in an Ivalua filter combobox identified by a nearby text label.
+    def select_filter(self, filter_label: str, option_value: str, container_attribute: str = "") -> str:
+        """Select a value in an unlabeled filter combobox.
 
-        Handles the pattern seen on browse list filter panels where a plain text
-        node ("Campaign", "Module", "Author", etc.) sits above an unlabeled
-        combobox containing a searchbox. These comboboxes have no aria-label and
-        cannot be found by fill_field / select_option / get_field_options.
+        container_attribute: "attr=value" extracted by the LLM from hint HTML
+          (e.g. "data-select2-id=33"). Python queries all elements with that attribute,
+          finds search inputs inside each, and tries them in order.
 
-        Strategy:
-          1. Walk all visible text nodes to find the one matching filter_label.
-          2. Find the next sibling combobox element in the DOM.
-          3. Click the searchbox inside it to open the dropdown.
-          4. Type the value to trigger the XHR autocomplete search.
-          5. Click the matching item from the dropdown results.
-          6. Press Escape to close the dropdown cleanly.
+        If container_attribute is empty, falls back to label proximity walk.
+        Tries every candidate until one produces the target option.
         """
         page = self._page
-        label_clean = filter_label.strip()
-        js_label = label_clean.replace("\\", "\\\\").replace('"', '\\"')
-        js_value = option_value.replace("\\", "\\\\").replace('"', '\\"')
 
         try:
-            # Step 1-3: locate the searchbox inside the combobox that follows
-            # the matching text label node.
-            result = page.evaluate(f"""() => {{
-                const label = "{js_label}".toLowerCase();
+            candidates = self._find_filter_inputs(filter_label, container_attribute)
+            if not candidates:
+                return f"error: could not find any input element for filter '{filter_label}'"
 
-                // Walk all text nodes — the label is a bare text node or
-                // a <text> / <span> with no role. Check all elements whose
-                // textContent (trimmed) exactly matches the label.
-                const allEls = Array.from(document.querySelectorAll('*'));
-                let labelEl = null;
-                for (const el of allEls) {{
-                    // Only consider leaf-ish nodes (not wrappers containing many children)
-                    const direct = el.childNodes.length <= 3
-                        && el.textContent.trim().toLowerCase() === label;
-                    if (direct) {{
-                        labelEl = el;
-                        break;
-                    }}
-                }}
-                if (!labelEl) return {{found: false, reason: 'label element not found for: {js_label}'}};
+            log.debug("[select-filter] found candidates", extra={
+                "event": "select_filter", "filter_label": filter_label,
+                "count": len(candidates),
+                "selectors": [f"{c['selector']}[{c['nth']}]" for c in candidates],
+                "containers": [c.get("container_text", c.get("select_id", "")) for c in candidates],
+            })
 
-                // Step 2: find the next combobox sibling or nearby combobox.
-                // Ivalua renders: <text>Campaign</text> <combobox><list><searchbox></combobox>
-                // Try next element sibling first, then parent's next sibling subtree.
-                let combobox = null;
-                let el = labelEl.nextElementSibling;
-                while (el) {{
-                    // Skip aria-hidden elements — select2 hides the native <select>
-                    // with aria-hidden="true" and class="select2-hidden-accessible".
-                    // We want the visible custom combobox UI, not the hidden native one.
-                    const isHidden = el.getAttribute('aria-hidden') === 'true';
-                    if (!isHidden && (el.getAttribute('role') === 'combobox' || el.tagName === 'SELECT')) {{
-                        combobox = el; break;
+            for idx, candidate in enumerate(candidates):
+                sel = candidate["selector"]
+                nth = candidate["nth"]
+                loc = page.locator(sel).nth(nth)
+                log.debug("[select-filter] trying candidate", extra={
+                    "event": "select_filter", "index": idx + 1, "total": len(candidates),
+                    "selector": sel, "nth": nth,
+                })
+
+                # Click the input to open the dropdown.
+                # Do NOT click the combobox ancestor first — that toggles the dropdown
+                # open then the second click on the input closes it again.
+                # A single click on the search input is sufficient for select2/slimselect.
+                try:
+                    loc.click(timeout=3000)
+                    page.wait_for_timeout(500)
+                except Exception as e:
+                    log.debug("[select-filter] candidate click failed", extra={
+                        "event": "select_filter", "index": idx + 1, "error": str(e),
+                    })
+                    continue
+
+                # Check if dropdown opened (aria-expanded should be true after click)
+                opened = page.evaluate(f"""() => {{
+                    const all = Array.from(document.querySelectorAll({json.dumps(sel)}));
+                    const inp = all[{nth}];
+                    if (!inp) return false;
+                    let el = inp.parentElement;
+                    for (let i = 0; i < 6 && el; i++) {{
+                        if (el.getAttribute('aria-expanded') === 'true') return true;
+                        el = el.parentElement;
                     }}
-                    if (!isHidden) {{
-                        const cb = el.querySelector('[role="combobox"]:not([aria-hidden="true"]), select:not([aria-hidden="true"])');
-                        if (cb) {{ combobox = cb; break; }}
-                    }}
-                    el = el.nextElementSibling;
-                }}
-                if (!combobox) {{
-                    // Try parent's children after labelEl
-                    const parent = labelEl.parentElement;
-                    if (parent) {{
-                        let found = false;
-                        for (const child of parent.children) {{
-                            if (found) {{
-                                const notHidden = child.getAttribute('aria-hidden') !== 'true';
-                                if (notHidden && child.getAttribute('role') === 'combobox') {{ combobox = child; break; }}
-                                const cb = notHidden && child.querySelector('[role="combobox"]:not([aria-hidden="true"])');
-                                if (cb) {{ combobox = cb; break; }}
+                    return false;
+                }}""")
+                if not opened:
+                    # Dropdown didn't open — try clicking the combobox ancestor explicitly
+                    try:
+                        page.evaluate(f"""() => {{
+                            const all = Array.from(document.querySelectorAll({json.dumps(sel)}));
+                            const inp = all[{nth}];
+                            if (!inp) return;
+                            let el = inp.parentElement;
+                            for (let i = 0; i < 6 && el; i++) {{
+                                if (el.getAttribute('role') === 'combobox') {{ el.click(); return; }}
+                                el = el.parentElement;
                             }}
-                            if (child === labelEl || child.contains(labelEl)) found = true;
-                        }}
-                    }}
-                }}
-                if (!combobox) return {{found: false, reason: 'no combobox after label'}};
+                        }}""")
+                        page.wait_for_timeout(400)
+                    except Exception:
+                        pass
+                log.debug("[select-filter] dropdown opened", extra={
+                    "event": "select_filter", "index": idx + 1, "opened": opened,
+                })
 
-                // Step 3: click the combobox to trigger widget initialisation — some
-                // frameworks (select2, chosen) only inject the search <input> into the
-                // DOM after the first click/open event.
-                combobox.click();
+                result = self._select_filter_type_and_click(loc, filter_label, option_value)
+                if not result.startswith("typed "):
+                    return result
 
-                // Step 4: find the searchbox inside the combobox
-                const searchbox = combobox.querySelector(
-                    '[role="searchbox"], input[type="search"], input[type="text"], input'
-                );
+                # This candidate's dropdown didn't contain the option — close and try next
+                log.debug("[select-filter] candidate exhausted, trying next", extra={
+                    "event": "select_filter", "index": idx + 1, "selector": sel,
+                })
+                try:
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(200)
+                except Exception:
+                    pass
 
-                // Diagnostic: always return what was resolved so failures can be debugged
-                const comboboxTag = combobox.tagName;
-                const comboboxRole = combobox.getAttribute('role') || '';
-                const comboboxClass = combobox.className || '';
-                const comboboxChildCount = combobox.childElementCount;
-                if (!searchbox) return {{
-                    found: false,
-                    reason: 'no searchbox inside combobox',
-                    debug: {{
-                        labelTag: labelEl.tagName,
-                        labelText: labelEl.textContent.trim().slice(0, 50),
-                        comboboxTag, comboboxRole, comboboxClass: comboboxClass.slice(0, 80),
-                        comboboxChildCount,
-                        comboboxOuterHTML: combobox.outerHTML.slice(0, 300)
-                    }}
-                }};
-
-                const id = searchbox.id || '';
-                const name = searchbox.getAttribute('name') || '';
-                const role = searchbox.getAttribute('role') || '';
-                const ariaControls = searchbox.getAttribute('aria-controls') || '';
-                return {{found: true, id, name, role, ariaControls}};
-            }}""")
-
-            if not result or not result.get("found"):
-                reason = result.get("reason", "unknown") if result else "js error"
-                debug = result.get("debug", {}) if result else {}
-                log.debug("[select-filter] not found", extra={"event": "select_filter", "reason": reason})
-                if debug:
-                    log.debug("[select-filter] debug info", extra={"event": "select_filter", "debug": debug})
-                return f"error: could not find filter '{filter_label}': {reason}"
-
-            inp_id = result.get("id")
-            inp_name = result.get("name")
-            inp_role = result.get("role")
-            inp_aria = result.get("ariaControls")
-            log.debug("[select-filter] found searchbox", extra={"event": "select_filter", "id": inp_id, "name": inp_name, "role": inp_role, "aria_controls": inp_aria})
-
-            # Step 5: click to open, type to search.
-            # Selector priority: id → name → role → aria-controls.
-            # role uses Playwright's native get_by_role() — W3C ARIA standard, more
-            # resilient than raw attribute selectors. aria-controls is last resort:
-            # also a standard attribute, always unique per widget, value read from DOM.
-            if inp_id:
-                loc = page.locator(f"#{inp_id}").first
-            elif inp_name:
-                loc = page.locator(f'input[name="{inp_name}"]').first
-            elif inp_role:
-                loc = page.get_by_role(inp_role).first
-            elif inp_aria:
-                loc = page.locator(f'input[aria-controls="{inp_aria}"]').first
-            else:
-                return f"error: searchbox for '{filter_label}' has no id, name, role, or aria-controls"
-
-            loc.click(timeout=3000)
-            page.wait_for_timeout(200)
-            page.keyboard.press("Control+a")
-            page.wait_for_timeout(50)
-            loc.press_sequentially(option_value, delay=80)
-
-            # Step 6: wait for autocomplete results and click the matching item
-            clicked = self._click_autocomplete_item(option_value)
-
-            # Step 7: dismiss dropdown
-            try:
-                page.keyboard.press("Escape")
-                page.wait_for_timeout(400)
-            except Exception:
-                pass
-
-            self._last_selectors = self._extract_selectors(loc)
-            if clicked:
-                return f"selected '{clicked}' in filter '{filter_label}'"
-            return f"typed '{option_value}' in filter '{filter_label}' — item may not have appeared in dropdown"
+            tried = [f"{c['selector']}[{c['nth']}]" for c in candidates]
+            return f"error: '{option_value}' not found for filter '{filter_label}' — tried {tried} — add scoped_selector to hint if wrong widget"
 
         except Exception as e:
             log.debug("[select-filter] failed", extra={"event": "select_filter", "error": str(e)})
             return f"error: select_filter failed for '{filter_label}': {e}"
+
+    def _find_filter_inputs(self, filter_label: str, container_attribute: str) -> list[dict]:
+        """Return candidate search inputs as [{"selector": css, "nth": N}] dicts.
+
+        With container_attribute ("attr=value" from LLM):
+          Query all containers matching [attr="value"], find the search input inside
+          each one, return each as a separate candidate for the caller to try.
+
+        Without: fall back to label proximity walk using hidden <select> as anchor.
+        """
+        page = self._page
+        js_label = filter_label.strip().replace("\\", "\\\\").replace('"', '\\"')
+
+        if container_attribute and " " in container_attribute:
+            # Full CSS selector passed directly (e.g. "[data-select2-id='33'] input.select2-search__field")
+            # Treat as direct input selector — find all matching elements
+            direct_sel = container_attribute.strip()
+            direct_json = json.dumps(direct_sel)
+            return page.evaluate(f"""() => {{
+                const all = Array.from(document.querySelectorAll({direct_json}));
+                return all.map((inp, nth) => {{
+                    const inpCls = (inp.className || '').trim().split(' ')[0];
+                    return {{ selector: {direct_json}, nth, container_text: '' }};
+                }});
+            }}""")
+
+        if container_attribute and "=" in container_attribute:
+            # Parse "attr=value" → CSS attribute selector [attr="value"]
+            attr, _, value = container_attribute.partition("=")
+            attr = attr.strip()
+            value = value.strip().strip("\"'")
+            css_attr = f'[{attr}="{value}"]'
+            attr_json = json.dumps(css_attr)
+            return page.evaluate(f"""() => {{
+                const containers = Array.from(document.querySelectorAll({attr_json}));
+                const results = [];
+                for (const container of containers) {{
+                    const inp = container.querySelector('input[role="searchbox"], input[type="search"]');
+                    if (!inp) continue;
+                    const inpCls = (inp.className || '').trim().split(' ')[0];
+                    const selector = inpCls
+                        ? {attr_json} + ' input.' + inpCls
+                        : {attr_json} + ' input[role="searchbox"]';
+                    const all = Array.from(document.querySelectorAll(selector));
+                    const nth = all.indexOf(inp);
+                    results.push({{ selector, nth: nth >= 0 ? nth : 0, container_text: container.textContent.trim().substring(0, 80) }});
+                }}
+                return results;
+            }}""")
+
+        # Label proximity walk using hidden <select> as anchor.
+        #
+        # Widget libraries (select2, slimselect) always wrap a hidden <select> element
+        # and place the visible widget as the select's immediate next sibling.
+        # Using the select's stable id to build the CSS selector avoids relying on
+        # dynamic container IDs (data-select2-id changes every page load).
+        #
+        # Strategy:
+        #   1. Find the element whose text exactly matches filter_label.
+        #   2. Search the surrounding DOM area for <select> elements with an id.
+        #   3. For each, check if a next sibling has a search input inside it.
+        #   4. Return "#select-id ~ * input[role=searchbox]" — stable across reloads.
+        return page.evaluate(f"""() => {{
+            const label = "{js_label}".toLowerCase();
+
+            // Find label element — direct text match only (avoid matching parent containers)
+            let labelEl = null;
+            for (const el of document.querySelectorAll('*')) {{
+                if (el.children.length === 0 && el.textContent.trim().toLowerCase() === label) {{
+                    labelEl = el; break;
+                }}
+            }}
+            if (!labelEl) return [];
+
+            // Collect candidate DOM roots to search within:
+            // walk up to 4 levels, check current element and all its siblings
+            const roots = new Set();
+            let p = labelEl.parentElement;
+            for (let depth = 0; depth < 4 && p; depth++) {{
+                roots.add(p);
+                // siblings of p — the label cell's peer cells in the same grid/row
+                let sib = p.parentElement?.firstElementChild;
+                while (sib) {{ roots.add(sib); sib = sib.nextElementSibling; }}
+                p = p.parentElement;
+            }}
+
+            const results = [];
+            for (const root of roots) {{
+                // Find hidden <select> elements that have a widget sibling
+                for (const sel of root.querySelectorAll('select[id]')) {{
+                    // Skip if the select IS in the label element's own subtree
+                    if (labelEl.contains(sel)) continue;
+
+                    // Walk forward siblings to find one containing a search input
+                    let sib = sel.nextElementSibling;
+                    while (sib) {{
+                        const inp = sib.querySelector('input[role="searchbox"], input[type="search"]');
+                        if (inp) {{
+                            // Build stable selector: #select-id ~ container input-class
+                            const inpCls = (inp.className || '').trim().split(' ')[0];
+                            const selector = inpCls
+                                ? `#${{sel.id}} ~ * input.${{inpCls}}`
+                                : `#${{sel.id}} ~ * input[role="searchbox"]`;
+                            // Verify it resolves to exactly this input (dedup)
+                            const matches = Array.from(document.querySelectorAll(selector));
+                            const nth = matches.indexOf(inp);
+                            if (nth >= 0 && !results.find(r => r.selector === selector && r.nth === nth)) {{
+                                results.push({{ selector, nth, select_id: sel.id }});
+                            }}
+                            break;
+                        }}
+                        sib = sib.nextElementSibling;
+                    }}
+                }}
+            }}
+            return results;
+        }}""")
+
+    def _select_filter_type_and_click(self, loc, filter_label: str, option_value: str) -> str:
+        """Type into an open filter searchbox and click the matching autocomplete item.
+
+        Tries three strategies in order:
+          1. Initial list (no typing) — item may already be visible
+          2. Short prefix (first 10 chars) — broader AJAX match
+          3. Full value — exact search
+        """
+        page = self._page
+
+        # Initial check: if option is already in the open list, 1 poll is enough.
+        # _click_autocomplete_item uses autocomplete_dropdown selectors in priority
+        # order, stopping at the first container that has visible items — so an
+        # always-visible saved-searches listbox is never reached when the real
+        # widget results container is already populated.
+        clicked = self._click_autocomplete_item(option_value, max_attempts=1)
+        if not clicked:
+            prefix = option_value[:10].strip()
+            page.keyboard.press("Control+a")
+            page.wait_for_timeout(50)
+            loc.press_sequentially(prefix, delay=80)
+            page.wait_for_timeout(500)
+            # After typing prefix: allow up to 3 polls for AJAX to load results
+            clicked = self._click_autocomplete_item(option_value, max_attempts=3)
+        if not clicked:
+            page.keyboard.press("Control+a")
+            page.wait_for_timeout(50)
+            loc.press_sequentially(option_value, delay=80)
+            # After full value: up to 3 polls; early-exit if list stays stable
+            clicked = self._click_autocomplete_item(option_value, max_attempts=3)
+
+        try:
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(400)
+        except Exception:
+            pass
+
+        self._last_selectors = self._extract_selectors(loc)
+        if clicked:
+            return f"selected '{clicked}' in filter '{filter_label}'"
+        return f"typed '{option_value}' in filter '{filter_label}' — item may not have appeared in dropdown"
 
     # ------------------------------------------------------------------
     # select_option override — dismiss open dropdown after selection
@@ -869,9 +1030,9 @@ class IvaluaBrowserSession(BrowserSession):
             if result and result.get("found"):
                 inp_id = result.get("id")
                 inp_name = result.get("name")
-                log.debug("[fill ivalua-autocomplete] found input", extra={"event": "fill_field_strategy", "id": inp_id, "name": inp_name})
+                log.debug("[fill ivalua-autocomplete] found input", extra={"event": "fill_field_strategy", "id": inp_id, "inp_name": inp_name})
                 loc = (
-                    page.locator(f"#{inp_id}").first
+                    page.locator(f'xpath=//*[@id="{inp_id}"]').first
                     if inp_id
                     else page.locator(f'input[name="{inp_name}"]').first
                 )
@@ -1039,7 +1200,7 @@ class IvaluaBrowserSession(BrowserSession):
                 inp_id = result.get("id")
                 inp_name = result.get("name")
                 loc = (
-                    page.locator(f"#{inp_id}").first
+                    page.locator(f'xpath=//*[@id="{inp_id}"]').first
                     if inp_id
                     else page.locator(f'input[name="{inp_name}"]').first
                 )

@@ -102,16 +102,27 @@
 - type: function
   function:
     name: select_filter
-    description: "Select a value in an Ivalua filter panel combobox that has NO aria-label — identified only by a nearby text label (e.g. 'Campaign', 'Module', 'Author', 'Assigned to'). Use this when the aria snapshot shows: text: Campaign / combobox: / list: / listitem: / searchbox \"--\". Pass the visible label text and the value to search for."
+    description: >
+      Select a value in a filter panel combobox that has NO aria-label.
+
+      IMPORTANT — you MUST pass container_attribute whenever the step hints include HTML for the target filter:
+        1. Read the hint HTML for the filter widget.
+        2. Find a unique attribute on the container element — prefer data-* attributes (e.g. data-select2-id="33") or a unique id/class.
+        3. Pass it as container_attribute in the format "attribute=value" (e.g. "data-select2-id=33").
+      Python will use this attribute to locate all matching elements on the page and try each one.
+      If no hint HTML is provided, omit container_attribute and Python will search by label proximity.
     parameters:
       type: object
       properties:
         filter_label:
           type: string
-          description: "The visible text label above the combobox (e.g. 'Campaign', 'Module', 'Author')"
+          description: "The visible text label of the filter (e.g. 'Campaign')"
         option_value:
           type: string
           description: "The value to search for and select (e.g. 'R7 - NYC Accenture SIT: PASS 1')"
+        container_attribute:
+          type: string
+          description: "A unique attribute extracted from the hint HTML that identifies the filter widget container. Format: 'attribute=value' (e.g. 'data-select2-id=33', 'id=filter_camp_id', 'data-filter=campaign'). Extract this from the hint HTML — do not guess."
       required:
         - filter_label
         - option_value
@@ -127,6 +138,19 @@
           type: string
       required:
         - element_description
+
+- type: function
+  function:
+    name: click_by_id
+    description: "Click an element by its HTML id attribute. Use this ONLY when the element has no visible text or accessible name in the aria snapshot (e.g. an icon-only link or button), but the hint provides its id. Safe for ids containing brackets, dots, or colons that would break a normal CSS selector — e.g. id='filter[data_id_resolution]_checkall'."
+    parameters:
+      type: object
+      properties:
+        element_id:
+          type: string
+          description: "The exact value of the HTML id attribute (e.g. 'filter[data_id_resolution]_checkall')"
+      required:
+        - element_id
 
 - type: function
   function:

@@ -28,12 +28,13 @@ from auditor.strategy_stats import StrategyStats
 from auditor.tools import BrowserSession
 
 
-def _make_session(app_config: dict) -> BrowserSession:
+def _make_session(app_config: dict, run_id: str = "") -> BrowserSession:
     platform = app_config.get("platform", "generic").lower()
     kwargs = dict(
         base_url=app_config["base_url"],
         headless=app_config["headless"],
         slow_mo_ms=app_config.get("slow_mo_ms", 0),
+        run_id=run_id,
     )
     if platform == "ivalua":
         from auditor.platforms.ivalua import IvaluaBrowserSession
@@ -139,7 +140,7 @@ def run_audit(
 
     all_evidence: list[dict] = []
 
-    with _make_session(config["app"]) as session:
+    with _make_session(config["app"], run_id=run_id) as session:
         session._stats = stats
         session_data: dict[str, str] = {}
 

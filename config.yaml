@@ -18,6 +18,19 @@ llm:
   budget_duration: "1d"
   log_llm_prompts: true              # log full message history sent to LLM
   log_llm_responses: true            # log full LLM response text/tool calls
+  # log_message_max_chars — max characters logged per message sent TO the LLM.
+  #   A message is the instruction the agent builds for each ReAct turn: step description,
+  #   expected outcome, hints, test data, and navigation context combined into one block of text.
+  #   Steps with many hints or embedded HTML can exceed this and get cut in Seq.
+  #   A "[TRUNCATED — N chars total, showing X]" marker is appended when cutting occurs.
+  #   Values: 2000 (default, stable runs) | 5000 (many hints/HTML) | -1 (unlimited, debug missing hints)
+  log_message_max_chars: 2000
+
+  # log_response_max_chars — max characters logged per reply received FROM the LLM.
+  #   A response is either a tool call (click, fill_field, verify_claim, etc.) or a free-text
+  #   reasoning reply. Tool calls are always logged in full — only free-text replies are truncated.
+  #   Values: 3000 (default) | 6000 (verbose reasoning) | -1 (unlimited, debug full LLM output)
+  log_response_max_chars: 3000
 
   # Swap provider by changing model strings only — no code changes needed:
   # reasoning_model: "bedrock/claude-sonnet-4-6"
@@ -25,12 +38,19 @@ llm:
   # fast_model: "ollama/llama3"
 
 agent:
-  max_actions_per_claim: 20
+  max_actions_per_claim: 8
   max_retries_per_claim: 3
 
 logging:
   seq_url: "http://host.docker.internal:5341"   # host.docker.internal = Mac host from inside Docker; set to null to disable
   log_file: "auditor.log"
+
+storage:
+  backend: minio                        # minio | s3 | disabled
+  bucket: auditor-evidence
+  endpoint_url: "http://localhost:9000" # MinIO only — remove for S3
+  presign_expiry_seconds: 604800        # 7 days
+  # credentials from .env: MINIO_ACCESS_KEY, MINIO_SECRET_KEY
 
 evidence:
   output_dir: "evidence"

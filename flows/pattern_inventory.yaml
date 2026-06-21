@@ -1,0 +1,270 @@
+platform: ivalua
+updated: '2026-06-21'
+entries:
+- platform: ivalua
+  step_type: transition
+  verb: go:ivalua
+  observations:
+  - role: list
+    interaction_sequence:
+    - navigate
+    success_count: 3
+  - role: link
+    interaction_sequence:
+    - navigate
+    success_count: 3
+  - role: img
+    interaction_sequence:
+    - navigate
+    success_count: 3
+  - role: heading
+    interaction_sequence:
+    - navigate
+    success_count: 3
+  - role: textbox
+    interaction_sequence:
+    - navigate
+    success_count: 3
+  - role: button
+    interaction_sequence:
+    - navigate
+    success_count: 3
+  - role: separator
+    interaction_sequence:
+    - navigate
+    success_count: 3
+- platform: ivalua
+  step_type: transition
+  verb: login
+  observations:
+  - role: button
+    interaction_sequence:
+    - fill_field
+    - click
+    success_count: 4
+  - role: img
+    interaction_sequence:
+    - fill_field
+    - click
+    success_count: 4
+  - role: log
+    interaction_sequence:
+    - fill_field
+    - click
+    success_count: 4
+- platform: ivalua
+  step_type: transition
+  verb: use:requests
+  observations:
+  - role: button
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: img
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: combobox
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: textbox
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: link
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: group
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: row
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: cell
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: searchbox
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: columnheader
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: option
+    interaction_sequence:
+    - navigate
+    success_count: 2
+  - role: log
+    interaction_sequence:
+    - navigate
+    success_count: 2
+- platform: ivalua
+  step_type: transition
+  verb: click:excel
+  observations:
+  - role: button
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: img
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: combobox
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: textbox
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: link
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: group
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: row
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: cell
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: searchbox
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: columnheader
+    interaction_sequence:
+    - download_file
+    success_count: 5
+  - role: option
+    interaction_sequence:
+    - download_file
+    success_count: 3
+  - role: log
+    interaction_sequence:
+    - download_file
+    success_count: 3
+  - role: checkbox
+    interaction_sequence:
+    - download_file
+    success_count: 2
+- platform: ivalua
+  step_type: transition
+  verb: search:campaign
+  observations:
+  - role: combobox
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: textbox
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: button
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: link
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: group
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: img
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: row
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: cell
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: searchbox
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: columnheader
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+  - role: checkbox
+    interaction_sequence:
+    - select_filter
+    success_count: 7
+- platform: ivalua
+  step_type: transition
+  verb: deselect:defect
+  observations:
+  - role: button
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: img
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: combobox
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: textbox
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: link
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: group
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: row
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: cell
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: searchbox
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: columnheader
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: checkbox
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: option
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: log
+    interaction_sequence:
+    - click_by_id
+    success_count: 1
+  - role: tooltip
+    interaction_sequence:
+    - click_by_id
+    success_count: 1

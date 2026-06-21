@@ -1,6 +1,5 @@
 flows:
-- id: flow_extranet
-  description: dsdsds
+- id: flow_suite_2d61389a_7dcf_4ac0_b74b_ff3380d12189
   test_conditions:
   - id: tc_069
     sequence: 1
@@ -68,10 +67,16 @@ flows:
         the Campaign widget'''
       - call select_filter(filter_label="Campaign", option_value={{campaign1}}, container_attribute="data-select2-id=33")
       - 'call select_filter(filter_label="Campaign", option_value={{campaign2}}, container_attribute="data-select2-id=33")   '
-      - 'REQUIRED : then call click_by_id(element_id="filter[data_id_resolution]_checkall") — this element has no visible text so click_by_id is required'
-      - 'REQUIRED : then click search button '
-    - id: f7665589-0e9d-4472-8c2e-617af70721f1
+    - id: 9ffb711d
       sequence: 5
+      description: Deselect the defect resolutions on the filter plane
+      type: transition
+      expected: None of the defect's resolution/status related check box is checked
+      hints:
+      - click('id=filter[data_id_resolution]_checkall')
+      - click('Search')
+    - id: f7665589-0e9d-4472-8c2e-617af70721f1
+      sequence: 6
       description: click excel extract button to download all the requests.
       type: transition
       expected: all the defect requests are downloaded

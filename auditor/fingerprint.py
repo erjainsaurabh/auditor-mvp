@@ -40,7 +40,13 @@ class StepFingerprint(BaseModel):
     step_hash: str = ""     # SHA-1 of the step's definition fields — empty means "untracked"
 
 
-def step_definition_hash(description: str, expected: str, navigation: str, data_keys: list[str]) -> str:
+def step_definition_hash(
+    description: str,
+    expected: str,
+    navigation: str,
+    data_keys: list[str],
+    hints: list[str] | None = None,
+) -> str:
     """Return a short SHA-1 digest of the stable, intent-defining fields of a Step.
 
     Only fields that change the *meaning* of the step are included:
@@ -48,6 +54,7 @@ def step_definition_hash(description: str, expected: str, navigation: str, data_
       - expected     — the observable state being checked
       - navigation   — where the browser should be
       - data_keys    — which test-data keys are used (not the values — those are in test_data.yaml)
+      - hints        — suggested action sequence; changing hints changes how the step executes
 
     Intentionally excluded:
       - depends_on   — execution order, not intent
@@ -60,6 +67,7 @@ def step_definition_hash(description: str, expected: str, navigation: str, data_
             "expected": expected.strip(),
             "navigation": navigation.strip(),
             "data_keys": sorted(data_keys),
+            "hints": hints or [],
         },
         sort_keys=True,
     )
