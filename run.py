@@ -10,7 +10,7 @@ from rich.console import Console
 from flowprobe.logger import get_logger, setup_logging, setup_logging_from_config
 # Bootstrap with file logging immediately; Seq is wired in setup_logging_from_config.
 from flowprobe.config import settings
-setup_logging(log_file=Path(__file__).parent / settings.log_file)
+setup_logging(log_file=Path(__file__).parent / (settings.log_file or "flowprobe.log"))
 log = get_logger("run")
 
 from flowprobe.agent import run_test_condition

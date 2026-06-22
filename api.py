@@ -26,7 +26,7 @@ from pydantic import BaseModel
 # ── logging bootstrap (must happen before any flowprobe import) ─────────────────
 from flowprobe.logger import get_logger, setup_logging, setup_logging_from_config
 from flowprobe.config import settings
-setup_logging(log_file=Path(__file__).parent / settings.log_file)
+setup_logging(log_file=Path(__file__).parent / (settings.log_file or "flowprobe.log"))
 try:
     setup_logging_from_config({})
 except Exception:
