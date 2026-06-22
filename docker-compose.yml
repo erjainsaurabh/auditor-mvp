@@ -3,11 +3,11 @@ services:
     build: .
     restart: always
     ports:
-      - "127.0.0.1:8081:8000"
+      - "0.0.0.0:8081:8000"
     env_file:
       - .env
     environment:
       - FLOWPROBE_HEADLESS=true
     volumes:
-      - /data/flowprobe/flows:/app/flows
-      - /data/flowprobe/evidence:/app/evidence
+      - ./flows:/app/flows
+      - ./evidence:/app/evidence
