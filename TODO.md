@@ -1,4 +1,4 @@
-# Auditor MVP — Task Tracker
+# FlowProbe — Task Tracker
 
 Status key: `✓ done` · `← current` · `○ pending`
 

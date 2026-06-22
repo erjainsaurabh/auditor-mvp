@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -e ".[dev]"
 RUN playwright install chromium
 
 # Copy application code
-COPY auditor/     ./auditor/
+COPY flowprobe/   ./flowprobe/
 COPY run.py       ./
 COPY api.py       ./
 COPY config.yaml  ./
@@ -28,7 +28,7 @@ RUN chmod +x docker-entrypoint.sh
 
 # Runtime config — credentials and API key are injected via fly secrets,
 # never baked into the image.
-ENV AUDITOR_HEADLESS=true
+ENV FLOWPROBE_HEADLESS=true
 
 EXPOSE 8000
 

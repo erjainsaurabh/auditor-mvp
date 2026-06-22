@@ -12,20 +12,20 @@ load_dotenv(Path(__file__).parent / ".env", override=True)
 import yaml
 from rich.console import Console
 
-from auditor.logger import get_logger, setup_logging, setup_logging_from_config
+from flowprobe.logger import get_logger, setup_logging, setup_logging_from_config
 # Bootstrap with file logging immediately; Seq is wired later once config.yaml is loaded.
-setup_logging(log_file=Path(__file__).parent / "auditor.log")
+setup_logging(log_file=Path(__file__).parent / "flowprobe.log")
 log = get_logger("run")
 
-from auditor.agent import run_test_condition
-from auditor.fingerprint import FingerprintRouter, FingerprintStore
-from auditor.graph import build_condition_graph, cascade_condition_failure, condition_execution_order, mark_conditions_blocked
-from auditor.llm_client import LLMClient
-from auditor.loader import ConditionStatus, load_flows
-from auditor.report import print_summary, write_report
-from auditor.pattern_inventory import PatternInventory
-from auditor.strategy_stats import StrategyStats
-from auditor.tools import BrowserSession
+from flowprobe.agent import run_test_condition
+from flowprobe.fingerprint import FingerprintRouter, FingerprintStore
+from flowprobe.graph import build_condition_graph, cascade_condition_failure, condition_execution_order, mark_conditions_blocked
+from flowprobe.llm_client import LLMClient
+from flowprobe.loader import ConditionStatus, load_flows
+from flowprobe.report import print_summary, write_report
+from flowprobe.pattern_inventory import PatternInventory
+from flowprobe.strategy_stats import StrategyStats
+from flowprobe.tools import BrowserSession
 
 
 def _make_session(app_config: dict, run_id: str = "") -> BrowserSession:
@@ -37,7 +37,7 @@ def _make_session(app_config: dict, run_id: str = "") -> BrowserSession:
         run_id=run_id,
     )
     if platform == "ivalua":
-        from auditor.platforms.ivalua import IvaluaBrowserSession
+        from flowprobe.platforms.ivalua import IvaluaBrowserSession
         return IvaluaBrowserSession(**kwargs)
     return BrowserSession(**kwargs)
 
@@ -61,10 +61,10 @@ def run_audit(
     config = yaml.safe_load(config_path.read_text())
     log.debug("config loaded from %s", config_path)
     # Wire Seq now that config is available — safe to call even if already configured
-    setup_logging_from_config(config, log_file=Path(__file__).parent / "auditor.log")
-    if os.getenv("AUDITOR_HEADLESS", "").lower() in ("1", "true", "yes"):
+    setup_logging_from_config(config, log_file=Path(__file__).parent / "flowprobe.log")
+    if os.getenv("FLOWPROBE_HEADLESS", "").lower() in ("1", "true", "yes"):
         config["app"]["headless"] = True
-        log.info("headless mode forced by AUDITOR_HEADLESS env var")
+        log.info("headless mode forced by FLOWPROBE_HEADLESS env var")
     flow_file = load_flows(*yaml_paths, test_data_path=data_path)
     run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
     output_dir = Path(config["evidence"]["output_dir"])
@@ -86,7 +86,7 @@ def run_audit(
 
     total_steps = len(flow_file.all_steps)
     total_tcs = len(flow_file.all_test_conditions)
-    console.print(f"\n[bold]Auditor MVP[/bold] — run [cyan]{run_id}[/cyan]")
+    console.print(f"\n[bold]FlowProbe[/bold] — run [cyan]{run_id}[/cyan]")
     console.print(f"Flows: {len(flow_file.flows)}  Test Conditions: {total_tcs}  Steps: {total_steps}")
     console.print(f"Target: {config['app']['base_url']}\n")
     if data_path:
@@ -98,7 +98,7 @@ def run_audit(
 
     _platform = config["app"].get("platform", "generic").lower()
     if _platform == "ivalua":
-        from auditor.platforms.ivalua import IvaluaBrowserSession
+        from flowprobe.platforms.ivalua import IvaluaBrowserSession
         platform_guidance = IvaluaBrowserSession.PLATFORM_GUIDANCE
     else:
         platform_guidance = ""
@@ -118,7 +118,7 @@ def run_audit(
     for yp in yaml_paths:
         fp_path = fingerprints_dir / f"{yp.stem}.fingerprints.yaml"
         store = FingerprintStore(fp_path, source_file=yp.stem)
-        from auditor.loader import load_flows as _lf
+        from flowprobe.loader import load_flows as _lf
         yf = _lf(yp)
         step_ids = {s.id for s in yf.all_steps}
         per_yaml_stores.append((store, step_ids))

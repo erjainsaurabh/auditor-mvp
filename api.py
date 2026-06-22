@@ -1,4 +1,4 @@
-"""FastAPI wrapper for auditor-mvp.
+"""FastAPI wrapper for flowprobe.
 
 Endpoints:
     POST /run                     — start an audit run (returns run_id immediately)
@@ -11,6 +11,7 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -25,10 +26,10 @@ load_dotenv(Path(__file__).parent / ".env", override=True)
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# ── logging bootstrap (must happen before any auditor import) ─────────────────
+# ── logging bootstrap (must happen before any flowprobe import) ─────────────────
 import yaml as _yaml
-from auditor.logger import get_logger, setup_logging, setup_logging_from_config
-_log_file = Path(__file__).parent / "auditor.log"
+from flowprobe.logger import get_logger, setup_logging, setup_logging_from_config
+_log_file = Path(__file__).parent / "flowprobe.log"
 setup_logging(log_file=_log_file)
 # Wire Seq immediately using config.yaml so all logs (including startup) go to Seq
 try:
@@ -39,7 +40,7 @@ except Exception:
 log = get_logger("api")
 
 from run import run_audit
-from auditor.storage.object_store import upload_run_downloads
+from flowprobe.storage.object_store import upload_run_downloads
 
 # ---------------------------------------------------------------------------
 # Job store — in-memory, sufficient for single-instance deployments
@@ -108,7 +109,7 @@ _recover_jobs()
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Auditor MVP API", version="1.0.0")
+app = FastAPI(title="FlowProbe API", version="1.0.0")
 
 
 class RunRequest(BaseModel):
@@ -133,6 +134,37 @@ class StatusResponse(BaseModel):
     result: str | None = None     # passed | failed | partial  (null until done)
     summary: dict | None = None   # total/verified/failed/blocked counts
     error: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _report_has_artifacts(report: dict) -> bool:
+    """Return True if any step in the report has a non-null artifact block."""
+    for flow in report.get("flows", []):
+        for tc in flow.get("test_conditions", []):
+            for step in tc.get("steps", []):
+                if step.get("artifact") is not None:
+                    return True
+    return False
+
+
+def _inject_artifact_urls(report: dict, url_map: dict[str, str]) -> None:
+    """Walk the report and stamp each step's artifact block with its presigned URL.
+
+    evidence.artifact is written by EvidenceCollector.finalize() and already
+    contains {type, filename} from the step's produces.type declaration.
+    This function adds the url field once object storage upload completes.
+    """
+    for flow in report.get("flows", []):
+        for tc in flow.get("test_conditions", []):
+            for step in tc.get("steps", []):
+                artifact = step.get("artifact")
+                if artifact and artifact.get("filename") in url_map:
+                    artifact["url"] = url_map[artifact["filename"]]
+                    # also patch inside evidence block so evidence.json stays consistent
+                    (step.get("evidence") or {}).get("artifact") and step["evidence"]["artifact"].update({"url": artifact["url"]})
 
 
 # ---------------------------------------------------------------------------
@@ -169,10 +201,20 @@ def _execute(job: _Job, yaml_paths: list[Path], data_path: Path | None) -> None:
             "run %s — done: result=%s total=%d verified=%d failed=%d blocked=%d",
             job.run_id, result, total, verified, failed, blocked,
         )
-        # Upload any downloaded files to object storage and embed presigned URLs.
-        artifacts = upload_run_downloads(job.run_id, _config or {})
-        if artifacts:
-            report["artifacts"] = artifacts
+        # Only upload to object storage when at least one step produced an artifact
+        # (i.e. had produces.type declared in YAML and a download succeeded).
+        if _report_has_artifacts(report):
+            log.info("run %s — artifacts found, uploading to object storage", job.run_id)
+            try:
+                url_map = upload_run_downloads(job.run_id, _config or {})
+                if url_map:
+                    _inject_artifact_urls(report, url_map)
+                    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+                    log.info("run %s — injected presigned URLs for: %s", job.run_id, list(url_map.keys()))
+            except Exception as upload_exc:
+                log.warning("run %s — object storage unavailable, skipping upload: %s", job.run_id, upload_exc)
+        else:
+            log.info("run %s — no artifacts declared, skipping object storage upload", job.run_id)
 
         with _jobs_lock:
             job.report = report
@@ -181,7 +223,7 @@ def _execute(job: _Job, yaml_paths: list[Path], data_path: Path | None) -> None:
             job.status = "done"
     except Exception as exc:
         tb = traceback.format_exc()
-        # Log the FULL traceback so it appears in auditor.log and stderr
+        # Log the FULL traceback so it appears in flowprobe.log and stderr
         log.error(
             "run %s — FAILED with %s: %s\n%s",
             job.run_id, type(exc).__name__, exc, tb,
@@ -202,7 +244,7 @@ def start_run(req: RunRequest) -> RunResponse:
 
     Supports two modes:
     • File-path mode (local dev):   set ``yamls`` / ``data`` to paths relative
-      to the auditor-mvp root directory.
+      to the flowprobe root directory.
     • Content mode (distributed):   set ``yaml_contents`` / ``yaml_filenames`` /
       ``data_content`` with the raw YAML text.  The server writes them to a
       per-run staging directory so the rest of the pipeline is unchanged.

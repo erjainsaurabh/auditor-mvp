@@ -1,4 +1,4 @@
-# Auditor MVP — Deployment Guide
+# FlowProbe — Deployment Guide
 
 ## Architecture Overview
 
@@ -36,34 +36,34 @@
 
 ```bash
 # Build image
-docker build -t auditor-mvp .
+docker build -t flowprobe .
 
 # Run (maps flows/ and evidence/ to local directories)
 docker run -d \
-  --name auditor-mvp \
+  --name flowprobe \
   -p 8080:8000 \
   -e ANTHROPIC_API_KEY=sk-ant-api03-... \
   -v $(pwd)/flows:/app/flows \
   -v $(pwd)/evidence:/app/evidence \
-  auditor-mvp
+  flowprobe
 
 # Tail logs
-docker logs -f auditor-mvp
+docker logs -f flowprobe
 
 # Stop
-docker stop auditor-mvp && docker rm auditor-mvp
+docker stop flowprobe && docker rm flowprobe
 ```
 
 ### Rebuild after code changes
 
 ```bash
-docker stop auditor-mvp && docker rm auditor-mvp
-docker build -t auditor-mvp . && docker run -d \
-  --name auditor-mvp -p 8080:8000 \
+docker stop flowprobe && docker rm flowprobe
+docker build -t flowprobe . && docker run -d \
+  --name flowprobe -p 8080:8000 \
   -e ANTHROPIC_API_KEY=sk-ant-api03-... \
   -v $(pwd)/flows:/app/flows \
   -v $(pwd)/evidence:/app/evidence \
-  auditor-mvp
+  flowprobe
 ```
 
 ---
@@ -83,19 +83,19 @@ fly auth login
 ### First-time setup
 
 ```bash
-cd /path/to/auditor-mvp
+cd /path/to/flowprobe
 
 # 1. Create the app (do NOT deploy yet)
 fly launch --no-deploy
 # Prompts:
-#   App name:  auditor-mvp         (or any unique name)
+#   App name:  flowprobe         (or any unique name)
 #   Region:    iad                 (US East — closest to Ivalua US servers)
 #   Postgres:  No
 #   Redis:     No
 #   fly.toml already exists? → keep existing (say No to overwrite)
 
 # 2. Create the persistent volume (fingerprints + strategy stats)
-fly volumes create auditor_flows --region iad --size 1
+fly volumes create flowprobe_flows --region iad --size 1
 #   --size 1  = 1GB (fingerprints are tiny YAML files, this is plenty)
 
 # 3. Set the Anthropic API key as a secret
@@ -117,14 +117,14 @@ fly deploy
 ### fly.toml reference
 
 ```toml
-app            = "auditor-mvp"
+app            = "flowprobe"
 primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"
 
 [[mounts]]
-  source      = "auditor_flows"    # persistent volume name
+  source      = "flowprobe_flows"    # persistent volume name
   destination = "/app/flows"       # mounted path inside container
   initial_size = "1gb"
 
@@ -167,14 +167,14 @@ fly secrets unset ANTHROPIC_API_KEY
 
 ## API Usage
 
-Base URL: `https://auditor-mvp.fly.dev` (Fly.io) or `http://localhost:8080` (local)
+Base URL: `https://flowprobe.fly.dev` (Fly.io) or `http://localhost:8080` (local)
 
 ### POST /run — Start a run
 
 Both flow YAML and test data are sent as **content in the request body** — nothing is stored on the server beforehand.
 
 ```bash
-curl -X POST https://auditor-mvp.fly.dev/run \
+curl -X POST https://flowprobe.fly.dev/run \
   -H "Content-Type: application/json" \
   -d '{
     "yaml_filenames": ["pocr_creation.yaml"],
@@ -199,7 +199,7 @@ curl -X POST https://auditor-mvp.fly.dev/run \
 ### GET /run/{run_id}/status — Poll status
 
 ```bash
-curl https://auditor-mvp.fly.dev/run/run_a1b2c3d4/status
+curl https://flowprobe.fly.dev/run/run_a1b2c3d4/status
 ```
 
 ```json
@@ -219,7 +219,7 @@ curl https://auditor-mvp.fly.dev/run/run_a1b2c3d4/status
 ```python
 import time, requests
 
-BASE = "https://auditor-mvp.fly.dev"
+BASE = "https://flowprobe.fly.dev"
 
 # Start run
 resp = requests.post(f"{BASE}/run", json={
@@ -242,7 +242,7 @@ print(status["result"])   # passed | failed | partial
 ### GET /run/{run_id}/report — Full report
 
 ```bash
-curl https://auditor-mvp.fly.dev/run/run_a1b2c3d4/report
+curl https://flowprobe.fly.dev/run/run_a1b2c3d4/report
 ```
 
 Returns 202 if still running, 500 if failed, 200 with full report JSON when done.
@@ -292,7 +292,7 @@ fly status
 
 ```bash
 # Delete the app entirely
-fly apps destroy auditor-mvp
+fly apps destroy flowprobe
 
 # Delete the volume (separate — volumes outlive apps by default)
 fly volumes destroy <volume-id>

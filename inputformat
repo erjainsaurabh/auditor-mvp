@@ -1,0 +1,60 @@
+config:
+  base_url: https://uat.example.com
+
+flows:
+  - id: procurement_requisitions
+    description: Procurement requisition management suite
+    test_conditions:
+
+      - id: tc_041
+        sequence: 1
+        goal: Create a new purchase requisition
+        execution:
+          navigation: /en/pr/create
+          navigation_mode: new_tab
+        steps:
+          - id: step_1
+            sequence: 1
+            type: behavioral
+            description: Fill in the requisition header fields
+            expected: Header fields are saved successfully
+            hints:
+              - fill_field('Requesting Agency', 'Department of Homeless Services')
+              - select_option(field_label='Procurement Method', option_value='Open Market')
+
+          - id: step_2
+            sequence: 2
+            type: behavioral
+            description: Submit the requisition
+            expected: Requisition is submitted and gets a PR number
+            hints:
+              - click('Submit')
+
+      - id: tc_042
+        sequence: 2
+        goal: Export requisitions to Excel and verify contents
+        depends_on:
+          - tc_041
+        execution:
+          navigation: /en/pr/list
+        steps:
+          - id: step_1
+            sequence: 1
+            type: behavioral
+            description: Apply filters and export to Excel
+            expected: Excel file is downloaded successfully
+            hints:
+              - select_filter(filter_label='Status', option_value='Submitted')
+              - download_file('Export to Excel')
+            produces:
+              type: defects_excel            # <-- test author declared
+
+          - id: step_2
+            sequence: 2
+            type: behavioral
+            description: Verify exported file contains the created requisition
+            expected: File contains PR number from tc_041
+            hints:
+              - download_file('Generate Coverage Report')
+            produces:
+              type: coverage_report          # <-- test author declared

@@ -1,16 +1,16 @@
-# fly.toml app configuration file generated for auditor-mvp on 2026-05-19T07:12:21-04:00
+# fly.toml app configuration file generated for flowprobe on 2026-05-19T07:12:21-04:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'auditor-mvp'
+app = 'flowprobe'
 primary_region = 'iad'
 
 [build]
   dockerfile = 'Dockerfile'
 
 [[mounts]]
-  source = 'auditor_flows'
+  source = 'flowprobe_flows'
   destination = '/app/flows'
   initial_size = '1gb'
 

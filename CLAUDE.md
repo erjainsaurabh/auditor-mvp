@@ -1,4 +1,4 @@
-# Auditor MVP — Claude Context
+# FlowProbe — Claude Context
 
 Full framework specification is in `AUDITOR_AGENT_FRAMEWORK.md`. This file
 gives the session-start context needed to work on the code without re-reading
@@ -48,14 +48,14 @@ hand-written YAML claims.
 ## Project structure
 
 ```
-auditor-mvp/
+flowprobe/
 ├── AUDITOR_AGENT_FRAMEWORK.md   # full framework spec
 ├── config.yaml                  # base_url, LLM model strings, agent limits
 ├── claims.yaml                  # what to verify — hand-written (MVP/V1.2), LLM-generated (V1.4+)
 ├── fingerprints.yaml            # how to verify it — machine-maintained, created at runtime
 ├── run.py                       # entrypoint: python run.py claims.yaml
 │
-├── auditor/
+├── flowprobe/
 │   ├── loader.py        # Pydantic schemas (Claim, ClaimType, ClaimStatus) + load_claims()
 │   ├── graph.py         # build_graph(), execution_order(), cascade_failure(), mark_blocked()
 │   ├── tools.py         # BrowserSession class + _trim_table_rows() snapshot trimmer

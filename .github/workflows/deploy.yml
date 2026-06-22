@@ -1,0 +1,42 @@
+name: Deploy FlowProbe
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Update code
+        run: |
+          git -C /app/flowprobe fetch origin main
+          git -C /app/flowprobe reset --hard origin/main
+
+      - name: Create data directories
+        run: |
+          mkdir -p /data/flowprobe/flows
+          mkdir -p /data/flowprobe/evidence
+
+      - name: Verify .env exists
+        run: |
+          if [ ! -f /app/flowprobe/.env ]; then
+            echo "ERROR: .env file not found. Copy .env.example to .env and fill in values."
+            exit 1
+          fi
+
+      - name: Build and restart container
+        working-directory: /app/flowprobe
+        run: docker compose up -d --build
+
+      - name: Clean up old images
+        run: docker image prune -f
+
+      - name: Verify container is running
+        run: |
+          sleep 5
+          docker compose -f /app/flowprobe/docker-compose.yml ps
+          curl -sf http://localhost:8000/health || echo "Warning: health check failed"

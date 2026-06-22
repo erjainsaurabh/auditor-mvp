@@ -1,0 +1,218 @@
+steps:
+  f69a7349-edd6-4dde-a781-1a22ad3c00fe:
+    step_id: f69a7349-edd6-4dde-a781-1a22ad3c00fe
+    source_file: defet_sync_2026_06_22_02_42
+    recorded_at: '2026-06-22T02:42:26.221449+00:00'
+    run_id: run_51417eb4
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: navigate
+      args:
+        target: http://project.ivalua.com
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully navigated to http://project.ivalua.com and confirmed
+          that the extranet credentials page is displayed. The page shows the expected
+          "Identification" section with Login and Password fields, and a Sign in button,
+          which is the standard Ivalua Extranet login interface.
+      selectors: []
+      assertions:
+      - /page/prj/index
+      - Homepage
+      - Identification
+    step_hash: 821750b3dece
+  8067d41d-5fc7-44a1-b7e8-d64282402d24:
+    step_id: 8067d41d-5fc7-44a1-b7e8-d64282402d24
+    source_file: defet_sync_2026_06_22_02_42
+    recorded_at: '2026-06-22T02:42:37.031789+00:00'
+    run_id: run_51417eb4
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: fill_field
+      args:
+        field_label: Login
+        value: '{{User}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="idlogin"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: //form/div/div/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: fill_field
+      args:
+        field_label: Password
+        value: '{{Password}}'
+      selectors:
+      - type: xpath
+        value: //*[@id="inputPassword"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: //form/div/div[2]/input
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: click
+      args:
+        element_description: ' Sign in'
+        element_type: button
+      selectors:
+      - type: xpath_structural
+        value: //form/div/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Sign in
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully logged in with the provided credentials (saurabh.y.jain@accenture.com).
+          The browser navigated to https://project.ivalua.com/page/prj/index_extranet
+          with title 'Homepage', and the extranet home page is displaying with navigation
+          elements (Requests, Factory, Community, Add-on store, Academy), user profile
+          (Saurabh J.), and main content area. The expected outcome has been fulfilled.
+      selectors: []
+      assertions:
+      - /page/prj/index_extranet
+      - Homepage
+    step_hash: dcd4d752409d
+  98fcedd0-f53d-4af8-8cdf-4c9d15872a3c:
+    step_id: 98fcedd0-f53d-4af8-8cdf-4c9d15872a3c
+    source_file: defet_sync_2026_06_22_02_42
+    recorded_at: '2026-06-22T02:43:38.834441+00:00'
+    run_id: run_51417eb4
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: select_filter
+      args:
+        filter_label: Campaign
+        option_value: 'R7 - NYC Accenture SIT: PASS 1'
+        container_attribute: data-select2-id=33
+      selectors: []
+      assertions: []
+    - tool: select_filter
+      args:
+        filter_label: Campaign
+        option_value: 'R7 - NYC Accenture SIT: PASS 2'
+        container_attribute: data-select2-id=33
+      selectors: []
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: 'Both campaigns have been successfully selected in the Campaign
+          combobox. The page snapshot clearly shows both "R7 - NYC Accenture SIT:
+          PASS 1" and "R7 - NYC Accenture SIT: PASS 2" listed as selected items in
+          the Campaign filter widget on the left side panel. The select_filter function
+          calls executed successfully for both campaigns using the data-select2-id=33
+          container attribute, and the page DOM confirms both listitem entries are
+          present in the combobox.'
+      selectors: []
+      assertions:
+      - /page/prj/req_browse
+      - Requests
+      - 'R7 - NYC Accenture SIT: PASS 1'
+      - 'R7 - NYC Accenture SIT: PASS 2'
+    step_hash: 2fce0526f8bd
+  9ffb711d:
+    step_id: 9ffb711d
+    source_file: defet_sync_2026_06_22_02_42
+    recorded_at: '2026-06-22T02:44:05.001735+00:00'
+    run_id: run_51417eb4
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: click_by_id
+      args:
+        element_id: filter[data_id_resolution]_checkall
+      selectors: []
+      assertions: []
+    - tool: click
+      args:
+        element_description: Search
+        element_type: button
+      selectors:
+      - type: xpath
+        value: //*[@id="search"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: //form/div/div/div/div[5]/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Search
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: Successfully clicked the check all button (id=filter[data_id_resolution]_checkall)
+          for the resolution/status filter, which deselected all checkboxes in that
+          filter section. The page now displays all 241 requests with various statuses,
+          indicating that no status filters are applied. The filter panel still shows
+          the Status section with all options listed, but none are checked, which
+          matches the expected outcome that "None of the defect's resolution/status
+          related checkbox is checked".
+      selectors: []
+      assertions:
+      - /page/prj/req_browse
+      - Requests
+    step_hash: f897f27bdde0
+  f7665589-0e9d-4472-8c2e-617af70721f1:
+    step_id: f7665589-0e9d-4472-8c2e-617af70721f1
+    source_file: defet_sync_2026_06_22_02_42
+    recorded_at: '2026-06-22T02:44:14.202959+00:00'
+    run_id: run_51417eb4
+    verdict: verified
+    confidence: high
+    actions:
+    - tool: download_file
+      args:
+        element_description: Excel extract
+      selectors:
+      - type: xpath
+        value: //*[@id="export_js"]
+        successes: 1
+        failures: 0
+      - type: xpath_structural
+        value: //form/div[2]/div/div/button
+        successes: 1
+        failures: 0
+      - type: text
+        value: Excel extract
+        successes: 1
+        failures: 0
+      assertions: []
+    - tool: verify_claim
+      args:
+        verdict: verified
+        confidence: high
+        reasoning: The Excel extract button was successfully clicked on the Requests
+          browse page which displayed 241 total request/defect records. The file 'extract.xlsx'
+          (494,570 bytes) was downloaded successfully, containing all the defect requests
+          visible on the browse page. The download was confirmed by the system and
+          a file token was returned.
+      selectors: []
+      assertions:
+      - /page/prj/req_browse
+      - Requests
+    step_hash: c7a43e1751a3

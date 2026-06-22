@@ -1,0 +1,39 @@
+"""BrowserAdapter — protocol for browser automation backends.
+
+Any class that implements these methods satisfies the protocol via structural
+subtyping (no explicit registration needed).
+
+Current implementations:
+  flowprobe.tools.BrowserSession          — Playwright sync API
+  flowprobe.platforms.ivalua.IvaluaBrowserSession — Playwright + Ivalua-specific helpers
+
+Future:
+  flowprobe.browser.selenium.SeleniumAdapter   — V2 / legacy SaaS targets
+"""
+from __future__ import annotations
+
+from typing import Any, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class BrowserAdapter(Protocol):
+    # Navigation
+    def navigate(self, target: str) -> str: ...
+    def current_url(self) -> str: ...
+
+    # Observation
+    def read_page(self) -> str: ...
+
+    # Interaction
+    def click(self, element_description: str) -> str: ...
+    def hover(self, element_description: str) -> str: ...
+    def fill_field(self, field_label: str, value: str) -> str: ...
+    def clear_field(self, field_label: str) -> str: ...
+    def submit_form(self) -> str: ...
+    def press_key(self, key: str) -> str: ...
+    def get_field_options(self, field_label: str) -> str: ...
+    def select_option(self, field_label: str, option_value: str) -> str: ...
+
+    # Low-level access (typed as Any to avoid pulling in Playwright as a dep)
+    @property
+    def page(self) -> Any: ...

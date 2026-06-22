@@ -4,7 +4,7 @@ Ivalua element discovery script.
 
 Navigates to a page (after login) and prints all visible Ivalua-semantic
 elements with their attributes — use this output to write new entries in
-auditor/platforms/ivalua_elements.yaml.
+flowprobe/platforms/ivalua_elements.yaml.
 
 Usage:
     python scripts/discover_elements.py --url /en/ord/order_browse/contract_budget
@@ -24,7 +24,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 import os
 import yaml
-from auditor.platforms.ivalua import IvaluaBrowserSession
+from flowprobe.platforms.ivalua import IvaluaBrowserSession
 
 
 def discover(url: str, test_selector: str | None) -> None:

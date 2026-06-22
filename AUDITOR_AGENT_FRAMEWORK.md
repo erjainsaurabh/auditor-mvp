@@ -1269,7 +1269,7 @@ Output:  report.json   + screenshots per claim
 ### MVP File Structure
 
 ```
-auditor-mvp/
+flowprobe/
 ├── config.yaml           # base URL, credentials, LLM model config
 ├── claims.yaml           # input: human-written claims
 ├── run.py                # entrypoint: load → run → report

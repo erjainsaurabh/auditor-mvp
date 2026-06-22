@@ -9,3 +9,9 @@
 {"asctime": "2026-06-19T04:21:44", "levelname": "INFO", "name": "auditor.direct_test", "message": "direct handler test", "event": "direct_test", "value": 42}
 {"asctime": "2026-06-19T04:24:23", "levelname": "INFO", "name": "auditor.test2", "message": "fixed handler test", "event": "fixed_test", "run_id": "abc123"}
 {"asctime": "2026-06-19T04:24:23", "levelname": "DEBUG", "name": "auditor.test2", "message": "debug from thread", "event": "llm_request", "model": "claude-haiku"}
+{"asctime": "2026-06-21T18:59:03", "levelname": "INFO", "name": "auditor", "message": "Seq handler connected \u2014 http://host.docker.internal:5341", "event": "seq_connected", "seq_url": "http://host.docker.internal:5341"}
+{"asctime": "2026-06-21T18:59:12", "levelname": "INFO", "name": "auditor.api", "message": "startup recovery: restored 25 completed runs from evidence/"}
+{"asctime": "2026-06-21T18:59:24", "levelname": "INFO", "name": "auditor", "message": "Seq handler connected \u2014 http://host.docker.internal:5341", "event": "seq_connected", "seq_url": "http://host.docker.internal:5341"}
+{"asctime": "2026-06-21T18:59:26", "levelname": "INFO", "name": "auditor.api", "message": "startup recovery: restored 25 completed runs from evidence/"}
+{"asctime": "2026-06-21T19:00:16", "levelname": "INFO", "name": "auditor", "message": "Seq handler connected \u2014 http://host.docker.internal:5341", "event": "seq_connected", "seq_url": "http://host.docker.internal:5341"}
+{"asctime": "2026-06-21T19:00:18", "levelname": "INFO", "name": "auditor.api", "message": "startup recovery: restored 25 completed runs from evidence/"}

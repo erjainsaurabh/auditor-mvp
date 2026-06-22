@@ -1,5 +1,5 @@
 platform: ivalua
-updated: '2026-06-21'
+updated: '2026-06-22'
 entries:
 - platform: ivalua
   step_type: transition
@@ -8,31 +8,31 @@ entries:
   - role: list
     interaction_sequence:
     - navigate
-    success_count: 3
+    success_count: 6
   - role: link
     interaction_sequence:
     - navigate
-    success_count: 3
+    success_count: 6
   - role: img
     interaction_sequence:
     - navigate
-    success_count: 3
+    success_count: 6
   - role: heading
     interaction_sequence:
     - navigate
-    success_count: 3
+    success_count: 6
   - role: textbox
     interaction_sequence:
     - navigate
-    success_count: 3
+    success_count: 6
   - role: button
     interaction_sequence:
     - navigate
-    success_count: 3
+    success_count: 6
   - role: separator
     interaction_sequence:
     - navigate
-    success_count: 3
+    success_count: 6
 - platform: ivalua
   step_type: transition
   verb: login
@@ -41,17 +41,17 @@ entries:
     interaction_sequence:
     - fill_field
     - click
-    success_count: 4
+    success_count: 7
   - role: img
     interaction_sequence:
     - fill_field
     - click
-    success_count: 4
+    success_count: 7
   - role: log
     interaction_sequence:
     - fill_field
     - click
-    success_count: 4
+    success_count: 7
 - platform: ivalua
   step_type: transition
   verb: use:requests
@@ -59,51 +59,51 @@ entries:
   - role: button
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: img
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: combobox
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: textbox
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: link
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: group
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: row
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: cell
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: searchbox
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: columnheader
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: option
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
   - role: log
     interaction_sequence:
     - navigate
-    success_count: 2
+    success_count: 4
 - platform: ivalua
   step_type: transition
   verb: click:excel
@@ -111,55 +111,59 @@ entries:
   - role: button
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: img
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: combobox
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: textbox
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: link
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: group
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: row
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: cell
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: searchbox
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: columnheader
     interaction_sequence:
     - download_file
-    success_count: 5
+    success_count: 9
   - role: option
     interaction_sequence:
     - download_file
-    success_count: 3
+    success_count: 7
   - role: log
     interaction_sequence:
     - download_file
-    success_count: 3
+    success_count: 7
   - role: checkbox
     interaction_sequence:
     - download_file
-    success_count: 2
+    success_count: 4
+  - role: tooltip
+    interaction_sequence:
+    - download_file
+    success_count: 1
 - platform: ivalua
   step_type: transition
   verb: search:campaign
@@ -167,47 +171,47 @@ entries:
   - role: combobox
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: textbox
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: button
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: link
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: group
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: img
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: row
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: cell
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: searchbox
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: columnheader
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
   - role: checkbox
     interaction_sequence:
     - select_filter
-    success_count: 7
+    success_count: 11
 - platform: ivalua
   step_type: transition
   verb: deselect:defect
@@ -215,56 +219,56 @@ entries:
   - role: button
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: img
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: combobox
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: textbox
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: link
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: group
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: row
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: cell
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: searchbox
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: columnheader
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: checkbox
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 5
   - role: option
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: log
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 7
   - role: tooltip
     interaction_sequence:
     - click_by_id
-    success_count: 1
+    success_count: 5

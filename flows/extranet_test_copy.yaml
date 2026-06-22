@@ -82,3 +82,5 @@ flows:
       expected: all the defect requests are downloaded
       hints:
       - use tool to download_file('Excel Extract')
+      produces:
+        type: defects_excel

@@ -1,0 +1,12 @@
+services:
+  flowprobe:
+    build: .
+    restart: always
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - FLOWPROBE_HEADLESS=true
+    volumes:
+      - /data/flowprobe/flows:/app/flows
+      - /data/flowprobe/evidence:/app/evidence

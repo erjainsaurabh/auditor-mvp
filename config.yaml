@@ -43,12 +43,12 @@ agent:
 
 logging:
   seq_url: "http://host.docker.internal:5341"   # host.docker.internal = Mac host from inside Docker; set to null to disable
-  log_file: "auditor.log"
+  log_file: "flowprobe.log"
 
 storage:
   backend: minio                        # minio | s3 | disabled
-  bucket: auditor-evidence
-  endpoint_url: "http://localhost:9000" # MinIO only — remove for S3
+  bucket: flowprobe-evidence
+  endpoint_url: "http://host.docker.internal:9000" # MinIO only — remove for S3
   presign_expiry_seconds: 604800        # 7 days
   # credentials from .env: MINIO_ACCESS_KEY, MINIO_SECRET_KEY
 
