@@ -271,6 +271,27 @@ class FingerprintReplayer:
                     log.debug("replay failed — download error", extra={"event": "replay_fail", "step_id": step.id, "tool": "download_file", "result": result[:200]})
                     return None
 
+            elif tool == "click_by_id":
+                element_id = args.get("element_id", "")
+                url_before = session.current_url()
+                try:
+                    session._page.locator(f"#{element_id}").first.click(timeout=5000)
+                    result = f"clicked by id={element_id!r} [replay]"
+                except Exception:
+                    try:
+                        clicked = session._page.evaluate(f"""() => {{
+                            const el = document.getElementById("{element_id}");
+                            if (el) {{ el.click(); return true; }}
+                            return false;
+                        }}""")
+                        result = f"clicked by id={element_id!r} [replay:js]" if clicked else f"error: id={element_id!r} not found"
+                    except Exception as exc:
+                        result = f"error: click_by_id failed: {exc}"
+                url_after = session.current_url()
+                evidence.log_action(f"click_by_id(element_id={element_id!r}) [replay]", result)
+                if result.startswith("error"):
+                    return None
+
             elif tool in ("click", "hover", "fill_field"):
                 if action.selectors:
                     resolved_args = dict(args)
