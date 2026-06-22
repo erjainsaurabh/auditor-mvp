@@ -30,7 +30,7 @@ jobs:
 
       - name: Build and restart container
         working-directory: /app/flowprobe
-        run: docker compose up -d --build
+        run: docker-compose up -d --build
 
       - name: Clean up old images
         run: docker image prune -f
@@ -38,5 +38,5 @@ jobs:
       - name: Verify container is running
         run: |
           sleep 5
-          docker compose -f /app/flowprobe/docker-compose.yml ps
+          docker-compose -f /app/flowprobe/docker-compose.yml ps
           curl -sf http://localhost:8000/health || echo "Warning: health check failed"
