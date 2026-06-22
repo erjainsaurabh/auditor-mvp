@@ -110,12 +110,12 @@ class RunRequest(BaseModel):
     # ── File-path mode (local dev, shared filesystem) ────────────────────────
     yamls: list[str] = []
     data: str | None = None
-    # ── Content mode (distributed / Fargate — no shared filesystem needed) ───
-    # When yaml_contents is provided the server writes them to a per-run temp
-    # directory and uses those paths; file-path fields are ignored.
+    # ── Content mode (distributed / EBS — send YAML text over HTTP) ──────────
+    # Files are written to flows/ so fingerprints, data, and flow YAMLs are
+    # co-located — identical layout to a local run.
     yaml_contents: list[str] = []          # YAML text for each flow file
-    yaml_filenames: list[str] = []         # Logical filenames (e.g. "plan_42.yaml")
-    data_content: str | None = None        # test_data.yaml text
+    yaml_filenames: list[str] = []         # Logical filenames (e.g. "extranet_plan.yaml")
+    data_content: str | None = None        # Written as flows/{stem}_data.yaml
 
 
 class RunResponse(BaseModel):
@@ -240,8 +240,9 @@ def start_run(req: RunRequest) -> RunResponse:
     • File-path mode (local dev):   set ``yamls`` / ``data`` to paths relative
       to the flowprobe root directory.
     • Content mode (distributed):   set ``yaml_contents`` / ``yaml_filenames`` /
-      ``data_content`` with the raw YAML text.  The server writes them to a
-      per-run staging directory so the rest of the pipeline is unchanged.
+      ``data_content`` with the raw YAML text.  The server writes them to
+      ``flows/`` so that fingerprints, data, and flow YAMLs are co-located —
+      matching the local folder structure exactly.
     """
     base = Path(__file__).parent
     run_id = f"run_{uuid.uuid4().hex[:8]}"
@@ -253,23 +254,32 @@ def start_run(req: RunRequest) -> RunResponse:
                 status_code=400,
                 detail="yaml_contents and yaml_filenames must have the same length",
             )
-        staging_dir = base / "evidence" / run_id / "staging"
-        staging_dir.mkdir(parents=True, exist_ok=True)
+        flows_dir = base / "flows"
+        flows_dir.mkdir(parents=True, exist_ok=True)
 
         yaml_paths: list[Path] = []
         for filename, content in zip(req.yaml_filenames, req.yaml_contents):
-            p = staging_dir / filename
+            p = flows_dir / filename
             p.write_text(content, encoding="utf-8")
             yaml_paths.append(p)
-            log.info("POST /run — wrote staging YAML: %s (%d chars)", p.name, len(content))
+            log.info("POST /run — wrote flow YAML: %s (%d chars)", p.name, len(content))
 
         data_path: Path | None = None
         if req.data_content:
-            data_path = staging_dir / "test_data.yaml"
+            # Use {stem}_data.yaml alongside the flow YAML — matches local convention.
+            # If multiple YAMLs are submitted, the data file is named after the first.
+            stem = yaml_paths[0].stem if yaml_paths else "test"
+            data_path = flows_dir / f"{stem}_data.yaml"
             data_path.write_text(req.data_content, encoding="utf-8")
-            log.info("POST /run — wrote staging test_data.yaml (%d chars)", len(req.data_content))
-        elif (base / "test_data.yaml").exists():
-            data_path = base / "test_data.yaml"
+            log.info("POST /run — wrote flow data: %s (%d chars)", data_path.name, len(req.data_content))
+        else:
+            # Fall back to a data file sitting next to the first flow YAML.
+            stem = yaml_paths[0].stem if yaml_paths else ""
+            candidate = flows_dir / f"{stem}_data.yaml"
+            if candidate.exists():
+                data_path = candidate
+            elif (flows_dir / "test_data.yaml").exists():
+                data_path = flows_dir / "test_data.yaml"
 
     # ── File-path mode ────────────────────────────────────────────────────────
     else:
@@ -287,8 +297,14 @@ def start_run(req: RunRequest) -> RunResponse:
             if not data_path.exists():
                 log.warning("POST /run — data file not found: %s", req.data)
                 raise HTTPException(status_code=400, detail=f"Data file not found: {req.data}")
-        elif (base / "test_data.yaml").exists():
-            data_path = base / "test_data.yaml"
+        else:
+            # Auto-detect: look for {stem}_data.yaml next to the first flow YAML.
+            stem = yaml_paths[0].stem if yaml_paths else ""
+            candidate = yaml_paths[0].parent / f"{stem}_data.yaml"
+            if candidate.exists():
+                data_path = candidate
+            elif (base / "flows" / "test_data.yaml").exists():
+                data_path = base / "flows" / "test_data.yaml"
 
     job = _Job(run_id=run_id)
     log.info("POST /run — queued %s (yamls=%s, data=%s)", run_id, [p.name for p in yaml_paths], data_path)

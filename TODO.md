@@ -28,6 +28,34 @@ Status key: `✓ done` · `← current` · `○ pending`
 
 ---
 
+## Design gaps
+
+- `✓` **Consolidate flow storage into `flows/` directory**
+  - Currently the API writes submitted YAMLs to `evidence/{run_id}/staging/` — a new
+    temp directory per run, accumulating forever on EBS with no reuse benefit
+  - Target layout — everything related to a flow lives together:
+    ```
+    flows/
+      extranet_plan.yaml                  ← flow definition
+      extranet_plan_data.yaml             ← test data
+      extranet_plan.fingerprints.yaml     ← generated alongside, not in a separate dir
+    evidence/                             ← run output only (no staging clutter)
+      run_abc/
+        report.json
+        *.png
+    ```
+  - API changes needed:
+    - `POST /flows` (or on `/run`) — save `yaml_contents` to `flows/{filename}` and
+      `data_content` to `flows/{stem}_data.yaml` by name, not by run_id
+    - `run.py` / `FingerprintStore` — point fingerprint path to `flows/` instead of
+      `fingerprints_dir` so it sits next to its source YAML
+    - Remove staging logic from `api.py`; file-path mode and content mode both resolve
+      to the same `flows/` location
+  - Benefit: fingerprints persist and are found correctly on EBS across deploys;
+    no orphaned staging directories; `flows/` is the single source of truth for inputs
+
+---
+
 ## Pending (tooling improvements)
 
 - `○` **Fix click/hover disambiguation** — add optional `role` parameter to `click()` and
