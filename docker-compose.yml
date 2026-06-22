@@ -9,5 +9,5 @@ services:
     environment:
       - FLOWPROBE_HEADLESS=true
     volumes:
-      - ./flows:/app/flows
-      - ./evidence:/app/evidence
+      - /data/flowprobe/flows:/app/flows
+      - /data/flowprobe/evidence:/app/evidence
