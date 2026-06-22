@@ -19,10 +19,6 @@ from pathlib import Path
 # Allow running from repo root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
-
-import os
 import yaml
 from flowprobe.platforms.ivalua import IvaluaBrowserSession
 
@@ -39,10 +35,10 @@ def discover(url: str, test_selector: str | None) -> None:
         page = session._page
 
         # --- login ---
-        username = os.getenv("APP_USERNAME") or app.get("username", "")
-        password = os.getenv("APP_PASSWORD") or app.get("password", "")
+        username = app.get("username", "")
+        password = app.get("password", "")
         if not username or not password:
-            print("ERROR: set APP_USERNAME and APP_PASSWORD in .env")
+            print("ERROR: set username and password in config.yaml under app:")
             sys.exit(1)
 
         print(f"Navigating to base URL and logging in...")

@@ -151,11 +151,11 @@ def _attach_seq(root: logging.Logger, seq_url: str) -> None:
         root.warning("Seq setup failed (%s) — continuing without Seq", e)
 
 
-def setup_logging_from_config(config: dict, log_file: str | Path | None = "flowprobe.log") -> None:
+def setup_logging_from_config(config: dict, log_file: str | Path | None = None) -> None:
     """Wire Seq after config is loaded. Safe to call after setup_logging() already ran."""
-    log_cfg = config.get("logging", {})
-    seq_url = log_cfg.get("seq_url")
-    file_override = log_cfg.get("log_file", log_file)
+    from flowprobe.config import settings
+    seq_url = settings.seq_url or None
+    file_override = log_file or settings.log_file
 
     root = logging.getLogger("flowprobe")
     if not root.handlers:

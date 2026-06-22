@@ -20,21 +20,15 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent / ".env", override=True)
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # ── logging bootstrap (must happen before any flowprobe import) ─────────────────
-import yaml as _yaml
 from flowprobe.logger import get_logger, setup_logging, setup_logging_from_config
-_log_file = Path(__file__).parent / "flowprobe.log"
-setup_logging(log_file=_log_file)
-# Wire Seq immediately using config.yaml so all logs (including startup) go to Seq
+from flowprobe.config import settings
+setup_logging(log_file=Path(__file__).parent / settings.log_file)
 try:
-    _config = _yaml.safe_load((Path(__file__).parent / "config.yaml").read_text())
-    setup_logging_from_config(_config, log_file=_log_file)
+    setup_logging_from_config({})
 except Exception:
     pass  # Seq failure must never crash the API
 log = get_logger("api")
@@ -206,7 +200,7 @@ def _execute(job: _Job, yaml_paths: list[Path], data_path: Path | None) -> None:
         if _report_has_artifacts(report):
             log.info("run %s — artifacts found, uploading to object storage", job.run_id)
             try:
-                url_map = upload_run_downloads(job.run_id, _config or {})
+                url_map = upload_run_downloads(job.run_id)
                 if url_map:
                     _inject_artifact_urls(report, url_map)
                     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")

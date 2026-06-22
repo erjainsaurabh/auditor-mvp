@@ -6,11 +6,7 @@ from typing import Any
 
 import litellm
 import yaml as _yaml
-from dotenv import load_dotenv
-
 from flowprobe.logger import get_logger
-
-load_dotenv()
 
 log = get_logger(__name__)
 
@@ -33,15 +29,16 @@ _SYSTEM_PROMPT, _TOOL_DEFINITIONS = _load_prompts()
 
 
 class LLMClient:
-    def __init__(self, config: dict[str, Any], platform_guidance: str = "") -> None:
-        self._reasoning_model: str = config["reasoning_model"]
-        self._fast_model: str = config["fast_model"]
-        self._max_tokens: int = config.get("max_tokens", 4096)
-        self._cache: bool = config.get("cache_system_prompt", True)
-        self._log_prompts: bool = config.get("log_llm_prompts", True)
-        self._log_responses: bool = config.get("log_llm_responses", True)
-        self._log_msg_max: int = config.get("log_message_max_chars", 2000)   # -1 = unlimited
-        self._log_resp_max: int = config.get("log_response_max_chars", 3000) # -1 = unlimited
+    def __init__(self, platform_guidance: str = "") -> None:
+        from flowprobe.config import settings
+        self._reasoning_model: str = settings.reasoning_model
+        self._fast_model: str = settings.fast_model
+        self._max_tokens: int = settings.max_tokens
+        self._cache: bool = settings.cache_system_prompt
+        self._log_prompts: bool = settings.log_llm_prompts
+        self._log_responses: bool = settings.log_llm_responses
+        self._log_msg_max: int = settings.log_message_max_chars
+        self._log_resp_max: int = settings.log_response_max_chars
 
         system_text = _SYSTEM_PROMPT
         if platform_guidance:

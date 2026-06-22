@@ -1,20 +1,16 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import uuid
 from pathlib import Path
 
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent / ".env", override=True)
-
-import yaml
 from rich.console import Console
 
 from flowprobe.logger import get_logger, setup_logging, setup_logging_from_config
-# Bootstrap with file logging immediately; Seq is wired later once config.yaml is loaded.
-setup_logging(log_file=Path(__file__).parent / "flowprobe.log")
+# Bootstrap with file logging immediately; Seq is wired in setup_logging_from_config.
+from flowprobe.config import settings
+setup_logging(log_file=Path(__file__).parent / settings.log_file)
 log = get_logger("run")
 
 from flowprobe.agent import run_test_condition
@@ -28,15 +24,14 @@ from flowprobe.strategy_stats import StrategyStats
 from flowprobe.tools import BrowserSession
 
 
-def _make_session(app_config: dict, run_id: str = "") -> BrowserSession:
-    platform = app_config.get("platform", "generic").lower()
+def _make_session(base_url: str, run_id: str = "") -> BrowserSession:
     kwargs = dict(
-        base_url=app_config["base_url"],
-        headless=app_config["headless"],
-        slow_mo_ms=app_config.get("slow_mo_ms", 0),
+        base_url=base_url,
+        headless=settings.flowprobe_headless,
+        slow_mo_ms=settings.slow_mo_ms,
         run_id=run_id,
     )
-    if platform == "ivalua":
+    if settings.platform == "ivalua":
         from flowprobe.platforms.ivalua import IvaluaBrowserSession
         return IvaluaBrowserSession(**kwargs)
     return BrowserSession(**kwargs)
@@ -48,7 +43,6 @@ console = Console()
 def run_audit(
     yaml_paths: list[Path],
     data_path: Path | None = None,
-    config_path: Path = Path("config.yaml"),
     report_path: Path = Path("report.json"),
     run_id: str | None = None,
 ) -> dict:
@@ -58,23 +52,19 @@ def run_audit(
     (CLI, API) can use it without re-reading the file.
     """
     log.info("run_audit starting — yamls=%s data=%s", yaml_paths, data_path)
-    config = yaml.safe_load(config_path.read_text())
-    log.debug("config loaded from %s", config_path)
-    # Wire Seq now that config is available — safe to call even if already configured
-    setup_logging_from_config(config, log_file=Path(__file__).parent / "flowprobe.log")
-    if os.getenv("FLOWPROBE_HEADLESS", "").lower() in ("1", "true", "yes"):
-        config["app"]["headless"] = True
-        log.info("headless mode forced by FLOWPROBE_HEADLESS env var")
+    setup_logging_from_config({})
+
     flow_file = load_flows(*yaml_paths, test_data_path=data_path)
     run_id = run_id or f"run_{uuid.uuid4().hex[:8]}"
-    output_dir = Path(config["evidence"]["output_dir"])
+    output_dir = Path(settings.evidence_output_dir)
 
-    # Let the flow YAML's config section override config.yaml — this is how
+    # Flow YAML config section can override base_url — this is how
     # the TestManagement app injects the environment base_url into each run.
+    base_url = settings.base_url
     flow_base_url = flow_file.config.get("base_url") if flow_file.config else None
     if flow_base_url:
         log.info("base_url overridden by flow YAML: %s", flow_base_url)
-        config["app"]["base_url"] = flow_base_url
+        base_url = flow_base_url
 
     log.info(
         "run_id=%s  flows=%d  test_conditions=%d  steps=%d",
@@ -88,7 +78,7 @@ def run_audit(
     total_tcs = len(flow_file.all_test_conditions)
     console.print(f"\n[bold]FlowProbe[/bold] — run [cyan]{run_id}[/cyan]")
     console.print(f"Flows: {len(flow_file.flows)}  Test Conditions: {total_tcs}  Steps: {total_steps}")
-    console.print(f"Target: {config['app']['base_url']}\n")
+    console.print(f"Target: {base_url}\n")
     if data_path:
         console.print(f"  test data: {data_path}")
 
@@ -96,22 +86,14 @@ def run_audit(
     order = condition_execution_order(condition_graph)
     tc_map = {tc.id: tc for tc in flow_file.all_test_conditions}
 
-    _platform = config["app"].get("platform", "generic").lower()
-    if _platform == "ivalua":
+    if settings.platform == "ivalua":
         from flowprobe.platforms.ivalua import IvaluaBrowserSession
         platform_guidance = IvaluaBrowserSession.PLATFORM_GUIDANCE
     else:
         platform_guidance = ""
-    llm = LLMClient(config["llm"], platform_guidance=platform_guidance)
+    llm = LLMClient(platform_guidance=platform_guidance)
 
-    # Fingerprints and strategy stats always write to a stable directory so
-    # they persist across runs even when YAML content is delivered at runtime
-    # (content mode) and the YAML lives in a per-run staging directory.
-    # In Fly.io this resolves to /app/flows (the persistent volume).
-    # In local dev it resolves to flows/ (same behaviour as before).
-    fingerprints_dir = Path(
-        config.get("evidence", {}).get("fingerprints_dir", "flows")
-    )
+    fingerprints_dir = Path(settings.fingerprints_dir)
     fingerprints_dir.mkdir(parents=True, exist_ok=True)
 
     per_yaml_stores: list[tuple[FingerprintStore, set[str]]] = []
@@ -126,21 +108,17 @@ def run_audit(
 
     fp_router = FingerprintRouter(per_yaml_stores)
 
-    # Strategy stats live in the same stable directory as fingerprints.
-    stats_path = fingerprints_dir / config.get("agent", {}).get(
-        "strategy_stats_file", "strategy_stats.yaml"
-    )
-    platform = config["app"].get("platform", "generic").lower()
-    stats = StrategyStats(stats_path, platform=platform)
-    console.print(f"  [dim]strategy stats: {stats_path} (platform={platform})[/dim]")
+    stats_path = fingerprints_dir / "strategy_stats.yaml"
+    stats = StrategyStats(stats_path, platform=settings.platform)
+    console.print(f"  [dim]strategy stats: {stats_path} (platform={settings.platform})[/dim]")
 
     inventory_path = fingerprints_dir / "pattern_inventory.yaml"
-    inventory = PatternInventory(inventory_path, platform=platform)
-    console.print(f"  [dim]pattern inventory: {inventory_path} (platform={platform})[/dim]")
+    inventory = PatternInventory(inventory_path, platform=settings.platform)
+    console.print(f"  [dim]pattern inventory: {inventory_path} (platform={settings.platform})[/dim]")
 
     all_evidence: list[dict] = []
 
-    with _make_session(config["app"], run_id=run_id) as session:
+    with _make_session(base_url, run_id=run_id) as session:
         session._stats = stats
         session_data: dict[str, str] = {}
 
@@ -159,7 +137,7 @@ def run_audit(
                 llm=llm,
                 output_dir=output_dir,
                 run_id=run_id,
-                max_actions=config["agent"]["max_actions_per_claim"],
+                max_actions=settings.max_actions_per_claim,
                 session_data=session_data,
                 fp_store=fp_router,
                 pattern_inventory=inventory,
