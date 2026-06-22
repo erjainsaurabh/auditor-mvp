@@ -29,12 +29,15 @@ log = get_logger("object_store")
 def _make_client() -> Any:
     """Return a boto3 S3 client. endpoint_url drives the target — blank = real AWS S3."""
     import boto3  # type: ignore
+    from botocore.config import Config  # type: ignore
 
     return boto3.client(
         "s3",
         endpoint_url=settings.storage_endpoint_url or None,
         aws_access_key_id=settings.aws_access_key_id or None,
         aws_secret_access_key=settings.aws_secret_access_key or None,
+        region_name=settings.aws_region or None,
+        config=Config(signature_version="s3v4"),
     )
 
 

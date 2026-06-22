@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     storage_presign_expiry_seconds: int = 604800
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
+    aws_region: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
