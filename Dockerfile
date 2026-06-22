@@ -16,7 +16,6 @@ RUN playwright install chromium
 COPY flowprobe/   ./flowprobe/
 COPY run.py       ./
 COPY api.py       ./
-COPY config.yaml  ./
 
 # Entrypoint creates required directories then starts uvicorn.
 # Flow YAMLs and test_data are NOT baked into the image — they are delivered
@@ -26,8 +25,7 @@ COPY config.yaml  ./
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# Runtime config — credentials and API key are injected via fly secrets,
-# never baked into the image.
+# Runtime config — all values injected via .env at startup, never baked into the image.
 ENV FLOWPROBE_HEADLESS=true
 
 EXPOSE 8000
