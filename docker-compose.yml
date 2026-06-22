@@ -3,7 +3,7 @@ services:
     build: .
     restart: always
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8080:8000"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - FLOWPROBE_HEADLESS=true
