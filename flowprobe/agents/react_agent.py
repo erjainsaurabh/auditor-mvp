@@ -60,6 +60,24 @@ _replayer = FingerprintReplayer()
 # Public entry point (functional API — used by run.py and ReactAgent.run)
 # ---------------------------------------------------------------------------
 
+_SENSITIVE_ARG_KEYS = {"value", "password", "secret", "token", "api_key"}
+
+
+def _redact_args(name: str, args: dict) -> dict:
+    """Return a copy of args with sensitive values replaced by '***'."""
+    if name != "fill_field":
+        return args
+    redacted = dict(args)
+    for key in _SENSITIVE_ARG_KEYS:
+        if key in redacted:
+            redacted[key] = "***"
+    # Also redact if field_label looks like a password field
+    label = str(redacted.get("field_label", "")).lower()
+    if any(w in label for w in ("password", "secret", "token", "pin")):
+        redacted["value"] = "***"
+    return redacted
+
+
 def run_test_condition(
     tc: TestCondition,
     session: Any,
@@ -632,7 +650,7 @@ def _react_loop(
                         f"hint injected into LLM context[/{'red' if count >= 3 else 'yellow'}]"
                     )
 
-            evidence.log_action(f"{name}({args})", result)
+            evidence.log_action(f"{name}({_redact_args(name, args)})", result)
             log_result(name, result)
             if action_elapsed > 0.5 and name != "verify_claim":
                 console.print(f"           [dim]action took {action_elapsed:.1f}s[/dim]")
