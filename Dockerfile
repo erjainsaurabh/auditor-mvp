@@ -25,6 +25,10 @@ COPY api.py       ./
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
+# Prefer IPv4 over IPv6 — api.anthropic.com now advertises AAAA records but
+# this EC2 container has no IPv6 routing, causing [Errno 99] on every LLM call.
+RUN echo 'precedence ::ffff:0:0/96  100' >> /etc/gai.conf
+
 # Runtime config — all values injected via .env at startup, never baked into the image.
 ENV FLOWPROBE_HEADLESS=true
 
