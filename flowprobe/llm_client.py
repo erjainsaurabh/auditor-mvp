@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,24 @@ import yaml as _yaml
 from flowprobe.logger import get_logger
 
 log = get_logger(__name__)
+
+# Matches AWS AccessDeniedException bodies, e.g.
+#   "User: arn:... is not authorized to perform: bedrock:ApplyGuardrail
+#    on resource: arn:aws:bedrock:us-east-2:...:guardrail/xyz because ..."
+_ACCESS_DENIED_RE = re.compile(
+    r"not authorized to perform:\s*(?P<action>[\w:]+)"
+    r"(?:\s+on resource:\s*(?P<arn>\S+))?"
+)
+
+
+def _parse_access_denied(err: str) -> tuple[str, str] | None:
+    """Return (action, resource_arn) if the error is an AWS AccessDenied, else None."""
+    if "not authorized to perform" not in err:
+        return None
+    m = _ACCESS_DENIED_RE.search(err)
+    if not m:
+        return None
+    return m.group("action"), (m.group("arn") or "(no resource in message)")
 
 
 def _load_prompts() -> tuple[str, list]:
@@ -39,6 +58,7 @@ class LLMClient:
         self._log_responses: bool = settings.log_llm_responses
         self._log_msg_max: int = settings.log_message_max_chars
         self._log_resp_max: int = settings.log_response_max_chars
+        self._aws_region: str = settings.aws_region
 
         system_text = _SYSTEM_PROMPT
         if platform_guidance:
@@ -170,6 +190,18 @@ class LLMClient:
         """Call the reasoning model. context dict is logged as structured fields."""
         self._log_request(self._reasoning_model, messages, "reason", context)
 
+        # Provider-specific kwargs. The anthropic-beta prompt-caching header is a
+        # native-Anthropic-API construct — Bedrock rejects/ignores it and instead
+        # honours the cache_control markers already set on the system message and
+        # tool definitions, which LiteLLM translates to Bedrock cache points. On
+        # Bedrock we also pin the region (None → boto3 default credential chain).
+        is_bedrock = self._reasoning_model.startswith("bedrock/")
+        extra: dict[str, Any] = {}
+        if self._cache and not is_bedrock:
+            extra["extra_headers"] = {"anthropic-beta": "prompt-caching-2024-07-31"}
+        if is_bedrock and self._aws_region:
+            extra["aws_region_name"] = self._aws_region
+
         for attempt in range(3):
             t0 = time.monotonic()
             try:
@@ -180,7 +212,7 @@ class LLMClient:
                     tool_choice="auto",
                     max_tokens=self._max_tokens,
                     timeout=120,
-                    **({"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if self._cache else {}),
+                    **extra,
                 )
                 duration_ms = int((time.monotonic() - t0) * 1000)
                 self._log_response(self._reasoning_model, response, "reason", duration_ms, context)
@@ -192,6 +224,23 @@ class LLMClient:
                 time.sleep(wait)
             except (litellm.APIConnectionError, litellm.Timeout,
                     litellm.APIError, Exception) as e:
+                # IAM / permission errors never succeed on retry — fail fast with the
+                # exact missing action + ARN instead of burning 90s on three retries.
+                denied = _parse_access_denied(str(e))
+                if denied:
+                    action, arn = denied
+                    log.error(
+                        "llm IAM permission denied — action=%s resource=%s. "
+                        "Add this action to the execution role; retrying will not help.",
+                        action, arn,
+                        extra={"event": "llm_access_denied", "missing_action": action,
+                               "resource": arn, "model": self._reasoning_model,
+                               "error": str(e), **(context or {})},
+                    )
+                    raise RuntimeError(
+                        f"Bedrock/LLM access denied: role is missing '{action}' on '{arn}'. "
+                        f"Grant this IAM action (region-wildcard for cross-region inference profiles)."
+                    ) from e
                 wait = 30 * (attempt + 1)
                 log.warning("llm error %s: %s — waiting %ds (attempt %d/3)",
                             type(e).__name__, e, wait, attempt + 1,
@@ -206,11 +255,16 @@ class LLMClient:
         messages = [{"role": "user", "content": prompt}]
         self._log_request(self._fast_model, messages, "extract", context)
 
+        extra: dict[str, Any] = {}
+        if self._fast_model.startswith("bedrock/") and self._aws_region:
+            extra["aws_region_name"] = self._aws_region
+
         t0 = time.monotonic()
         response = litellm.completion(
             model=self._fast_model,
             messages=messages,
             max_tokens=1024,
+            **extra,
         )
         duration_ms = int((time.monotonic() - t0) * 1000)
         self._log_response(self._fast_model, response, "extract", duration_ms, context)

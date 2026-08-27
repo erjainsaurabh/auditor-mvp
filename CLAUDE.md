@@ -280,6 +280,104 @@ the stored selectors do the actual work.
 
 ---
 
+## Machine-learned execution layers
+
+Three machine-maintained stores decide *how* an action gets executed. They are
+written to `settings.fingerprints_dir` (wired up in `run.py`) and range from
+most general (platform-wide) to most specific (one exact step). None require
+LLM calls to consult.
+
+```
+human hints  →  strategy_stats     (which strategy, per platform)
+             →  pattern_inventory   (which tool sequence, per step-kind)
+             →  fingerprint          (which exact selector, per step)
+```
+
+### 1. strategy_stats.yaml — per-platform strategy priority
+
+`flowprobe/strategy_stats.py` — the `StrategyStats` class. Answers: "on this
+platform, which resolution strategy should `click` / `fill_field` try first?"
+
+- Keyed by `platform` + tool (`click`, `fill_field`).
+- The candidate strategies are the waterfall keys in `CLICK_DEFAULT_ORDER`
+  (`button`, `tab`, `link`, `text_exact`, `text_desc`, `text_fuzzy`,
+  `aria_label`, `title`, `option`) and `FILL_DEFAULT_ORDER` (`label_exact`,
+  `label_fuzzy`, `placeholder`, `aria_label`, `name_id`).
+- Each strategy tracks `{tried, wins}`; `win_rate = wins / tried`.
+- `sorted_keys(tool)` sorts strategies by win_rate descending (default order as
+  tiebreaker, cold-start safe). `tools.py` reorders its strategy list by this
+  ranking before every `click` / `fill_field`.
+- **Updated live**: `record_tried()` on each strategy attempt, `record_win()`
+  on the first strategy that succeeds. `record_win` saves immediately
+  (crash-safe). End-of-run `save(force=True)` guarantees the file exists even
+  when every step hit fingerprint replay.
+
+```yaml
+# strategy_stats.yaml
+platform: ivalua
+stats:
+  click:
+    button:      {tried: 60, wins: 47}   # 78% → tried first
+    tab:         {tried: 55, wins:  8}
+    option:      {tried: 60, wins:  1}
+  fill_field:
+    label_exact: {tried: 40, wins: 31}
+```
+
+### 2. pattern_inventory.yaml — per-platform interaction sequences
+
+`flowprobe/pattern_inventory.py` — the `PatternInventory` class. Answers: "for
+this *kind* of step, what tool sequence has worked before?" A higher-altitude
+prior than fingerprints — it generalises across steps, not just replays one.
+
+- Keyed by `(platform, step_type, verb)`. The `verb` is a `verb:noun` key
+  extracted from the step description (e.g. `search:campaign`, `click:excel`).
+- Each entry holds `AriaObservation`s: an aria `role` seen on the page (e.g.
+  `combobox`), the `interaction_sequence` that succeeded (e.g.
+  `["click", "select_option"]`), and a `success_count`.
+- **Recorded** on every *verified* step (`record()`), independent of the
+  fingerprint store.
+- **Queried** only when the step has **no fingerprint** and the best matching
+  observation has `success_count >= MIN_SUCCESS_COUNT` (3). The match prefers an
+  observation whose aria role appears in the current snapshot, else falls back
+  to the highest-count observation. Result is injected into the LLM's user
+  message as a "suggested interaction sequence" hint.
+
+```yaml
+# pattern_inventory.yaml
+platform: ivalua
+entries:
+  - platform: ivalua
+    step_type: behavioral
+    verb: "search:campaign"
+    observations:
+      - role: combobox
+        interaction_sequence: [click, select_option]
+        success_count: 7
+```
+
+### 3. Fingerprints — per-step exact selectors
+
+Covered above (Execution Fingerprint Layer). The most specific tier: exact
+xpath / aria / text selectors with a `successes/failures` confidence matrix for
+one exact step, stored per source YAML in `{yaml_stem}.fingerprints.yaml` and
+routed by the compound key `(source_file, step_id)` via `FingerprintRouter`.
+
+---
+
+## Vocabulary note — TestCondition / Step
+
+The runtime model has evolved past the flat "claim" language used in the MVP
+sections above. In the current code (`flowprobe/loader.py`,
+`flowprobe/agents/react_agent.py`):
+
+- A **TestCondition** (`tc`) is the top-level unit `run_test_condition()` drives.
+- A TestCondition contains ordered **Steps**; each Step is what the ReAct loop
+  verifies and what carries a fingerprint. "Claim" in older sections ≈ "Step".
+- Status enums: `ConditionStatus` (test condition) and `StepStatus` (step).
+
+---
+
 ## Current build phase: V1.4
 
 ```

@@ -596,7 +596,45 @@ def _react_loop(
         msg = response.choices[0].message
 
         if not msg.tool_calls:
-            console.print("    [yellow]LLM returned no tool call — stopping loop[/yellow]")
+            # No tool call means the loop can't proceed. The usual culprits:
+            #   • guardrail intervention (Bedrock) → finish_reason 'content_filtered',
+            #     0 input/output tokens, and the guardrail's canned block text as content
+            #   • the model genuinely replied in prose instead of calling a tool
+            # Surface both the finish reason and the returned text so it's diagnosable
+            # from the logs instead of a bare "no tool call".
+            finish_reason = getattr(response.choices[0], "finish_reason", None)
+            returned_text = (msg.content or "").strip()
+            in_tok = getattr(usage, "prompt_tokens", 0) if usage else 0
+            out_tok = getattr(usage, "completion_tokens", 0) if usage else 0
+            guardrail_hit = (
+                finish_reason in ("content_filtered", "guardrail_intervened")
+                or (in_tok == 0 and out_tok == 0)
+            )
+            log.warning(
+                "llm returned no tool call — finish_reason=%s tokens(in=%d,out=%d) guardrail_suspected=%s text=%r",
+                finish_reason, in_tok, out_tok, guardrail_hit, returned_text[:500],
+                extra={
+                    "event": "llm_no_tool_call",
+                    "finish_reason": finish_reason,
+                    "input_tokens": in_tok,
+                    "output_tokens": out_tok,
+                    "guardrail_suspected": guardrail_hit,
+                    "returned_text": returned_text[:2000],
+                    "step_id": step.id,
+                },
+            )
+            if guardrail_hit:
+                console.print(
+                    "    [red]LLM returned no tool call — likely a Bedrock GUARDRAIL block "
+                    f"(finish_reason={finish_reason}, 0-token response). "
+                    "The guardrail is filtering FlowProbe's prompt.[/red]"
+                )
+                if returned_text:
+                    console.print(f"    [dim]   guardrail/model said: {returned_text[:300]}[/dim]")
+            else:
+                console.print("    [yellow]LLM returned no tool call — stopping loop[/yellow]")
+                if returned_text:
+                    console.print(f"    [dim]   model said: {returned_text[:300]}[/dim]")
             break
 
         messages.append({"role": "assistant", "content": msg.content, "tool_calls": msg.tool_calls})
