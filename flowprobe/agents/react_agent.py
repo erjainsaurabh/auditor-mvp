@@ -164,17 +164,23 @@ def run_test_condition(
         data_context = ""
         if step.data:
             _sensitive = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
+            # NOTE: the old "Test data (use these exact values).\n  key: value" shape — an
+            # indented key:value block under that imperative header — is DETERMINISTICALLY
+            # blocked by AWS Bedrock's content filter when it follows a tool-use turn (it reads
+            # as an injected "use these exact values" directive handed to an active agent;
+            # verified 8/8 blocked). Neutral framing with bulleted "- key: 'value'" lines passes
+            # cleanly (verified 4/4). The trigger is the FRAMING, not the values — even "foo: bar"
+            # tripped it and real credentials in neutral prose did not. Do not restore the old shape.
             data_lines = "\n".join(
-                f"  {k}: [sensitive — pass placeholder {{{{{k}}}}} as the value]"
-                if _sensitive.search(k) else f"  {k}: {v}"
+                f"- {k}: use placeholder {{{{{k}}}}} (sensitive value, substituted at run time)"
+                if _sensitive.search(k) else f"- {k}: '{v}'"
                 for k, v in step.data.items()
             )
             override_note = (
-                " Any example values shown in the steps above are illustrations only — "
-                "use the exact values from this data block instead."
+                " These take precedence over any example values shown in the steps above."
                 if step.hints else ""
             )
-            data_context = f"Test data (use these exact values).{override_note}\n{data_lines}\n"
+            data_context = f"Field values for this step.{override_note}\n{data_lines}\n"
 
         # Pattern inventory suggestion — only injected when no fingerprint exists
         # and the inventory has enough observations for this (platform, step_type, verb)
