@@ -211,25 +211,26 @@ def run_test_condition(
         })
 
         # Reduced-signal variant for the content-filter fallback. AWS Bedrock's content
-        # filter blocks prompts where credential/value-dense guidance stacks up (hints +
-        # inventory + a data block of literal values, next to a tool-use turn). This variant
-        # sheds that signal: it drops the inventory suggestion and sends the data block as
-        # {{placeholders}} instead of literal values. The executor substitutes real values
-        # at fill-time regardless, so the step stays fully actionable. Used only on retry
-        # when the full prompt is content-filtered (see _react_loop). Verified to clear the
-        # filter while the full prompt reliably trips it.
+        # filter blocks prompts where credential/automation signal stacks up (hints +
+        # inventory + a data block + nav context, next to a tool-use turn). This variant
+        # collapses to the shape empirically proven to clear the filter:
+        # claim + expected + hints + DOM. It drops the inventory suggestion, the nav
+        # context, AND the data block whenever hints already carry the {{placeholders}}
+        # (the block is pure redundancy there — restating credentials is what re-trips the
+        # filter). Only hint-less steps keep a placeholder-only data block as their sole
+        # guidance. The executor substitutes real values at fill-time regardless, so the
+        # step stays fully actionable. Used only on retry after a content-filter block.
         reduced_data_context = ""
-        if step.data:
+        if step.data and not step.hints:
             reduced_lines = "\n".join(f"- {k}: {{{{{k}}}}}" for k in step.data)
             reduced_data_context = (
-                f"Field values for this step (placeholders substituted at run time).\n{reduced_lines}\n"
+                f"Field values (placeholders substituted at run time).\n{reduced_lines}\n"
             )
         reduced_user_content = (
             f"Claim: {step.description}\n"
             f"Expected outcome: {step.expected}\n"
             + hints_context
             + reduced_data_context
-            + nav_context
             + "Verify this claim and call verify_claim when done."
         )
 
