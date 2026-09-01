@@ -18,7 +18,7 @@ import re
 # (username/email) are included so they are masked alongside secrets — the
 # stored login identifier is often an email address.
 SENSITIVE = re.compile(
-    r"password|passwd|secret|token|credential|username|user_name|email",
+    r"password|passwd|secret|token|credential|user|email|login",
     re.IGNORECASE,
 )
 
