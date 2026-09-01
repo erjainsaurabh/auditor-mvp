@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from flowprobe.agents.console import console
+from flowprobe.agents.redaction import is_sensitive, redact_result
 from flowprobe.storage.base import EvidenceStore
 
 
@@ -57,13 +58,14 @@ def dispatch(
                 lambda m: step.data.get(m.group(1), m.group(0)),
                 args["value"],
             )
-            _sensitive = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
-            display_value = "[sensitive]" if _sensitive.search(args["field_label"]) else repr(value)
+            display_value = "[sensitive]" if is_sensitive(args["field_label"]) else repr(value)
             console.print(f"           [dim]data: field={args['field_label']!r} value={display_value}[/dim]")
             result = session.fill_field(args["field_label"], value)
             if not result.startswith("error"):
                 session._last_interacted_label = args["field_label"].rstrip(" *").strip()
-            return result
+            # Mask the substituted value baked into fill_field's return string
+            # before it flows to the LLM context, evidence, and console.
+            return redact_result(result, args["field_label"], value)
 
         case "clear_field":
             return session.clear_field(args["field_label"])

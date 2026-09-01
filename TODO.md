@@ -48,7 +48,7 @@ Findings from external code audit — performance, reliability, extensibility, s
 
 ### Priority 2 — schedule next cycle
 
-- `○` **F6 · `import re` inside hot ReAct loop** — three inline `import re` / `import re as _re` inside the per-action loop body (`react_agent.py:527, 616, 707`). Already imported at module level (line 14). Fix: delete the inline imports.
+- `✓` **F6 · `import re` inside hot ReAct loop** — the three inline `import re as _re` / `_re2` in `react_agent.py` removed; all sites now use the module-level `re` (done alongside the credential-redaction fixes).
 
 - `○` **F7 · `session._page.title()` bypasses BrowserSession abstraction** — `react_agent.py:226` calls a private Playwright attribute directly, breaking subclasses and mocks. Fix: add `current_title() -> str` to `BrowserSession` and call that.
 
@@ -176,6 +176,8 @@ These are in `AUDITOR_AGENT_FRAMEWORK.md` but not yet implemented:
 
 ## Completed
 
+- `✓` **Security: credential leak via `fill_field` return string** — `session.fill_field()` returned `filled '<label>' with '<value>'` with the substituted secret baked in (`tools.py:798` + iframe path `:827`), which flowed unredacted into the LLM message history, `evidence.json` result field, `result_summary` structured log, and the console. Fixed at the dispatch seam: `dispatch.py` now masks the value via `redact_result()` before returning, killing all four leaks at once. New `flowprobe/agents/redaction.py` centralizes the sensitive-data regex + helpers so the previously-duplicated (and drifting) redaction sites share one source of truth.
+- `✓` **Security: login username never redacted** — the sensitive regex matched only `password|passwd|secret|token|credential`, so `app_username` (often an email) leaked in cleartext to the LLM prompt, logs, and console. Regex extended with `username|user_name|email` in the shared `redaction.SENSITIVE`; usernames are now placeholdered in the prompt and masked in results exactly like passwords. Note: this also masks non-credential email/username *data* fields — intended (PII minimization); values are still substituted correctly at runtime via `{{placeholder}}`.
 - `✓` **MVP** — flat YAML claims, single ReAct loop per claim, evidence + report
 - `✓` **V1.1** — flows → test conditions → steps hierarchy, shared LLM context within a test condition, message pruning
 - `✓` **V1.2** — session state capture (`current_url`, `page_title`, `url_segment:N`), data handoff between steps

@@ -58,6 +58,10 @@ class LLMClient:
         self._log_responses: bool = settings.log_llm_responses
         self._log_msg_max: int = settings.log_message_max_chars
         self._log_resp_max: int = settings.log_response_max_chars
+        # Level axis (orthogonal to what/truncation): where prompt & response logs
+        # emit. "info" surfaces them on the console; "debug" keeps them for the
+        # structured pipeline only.
+        self._log_emit = log.info if settings.log_llm_level.lower() == "info" else log.debug
         self._aws_region: str = settings.aws_region
 
         system_text = _SYSTEM_PROMPT
@@ -75,32 +79,52 @@ class LLMClient:
 
     # ── internal helpers ──────────────────────────────────────────────────────
 
+    @staticmethod
+    def _truncate(text: str, max_chars: int) -> str:
+        """Apply the truncation axis: -1 = full, otherwise cap at max_chars."""
+        if max_chars != -1 and len(text) > max_chars:
+            return text[:max_chars] + f" … [TRUNCATED — {len(text)} chars total, showing {max_chars}]"
+        return text
+
     def _log_request(
         self,
         model: str,
         messages: list[dict],
         call_type: str,
         context: dict | None = None,
+        include_system_and_tools: bool = False,
     ) -> None:
+        """Log the outgoing request. What: gated by log_llm_prompts. Level: emitted
+        via self._log_emit (log_llm_level). Truncation: log_message_max_chars (-1 =
+        full). When include_system_and_tools is set (reasoning calls), the system
+        prompt and tool count are logged too, so the record reflects the full payload
+        that actually goes to the provider. Emitted before the API call, so it is
+        visible even when the request is content-filtered or errors."""
         if not self._log_prompts:
             return
-        # Build a clean, readable view of the conversation — last 5 messages
-        # are most relevant; include all but cap at 10 to avoid huge log lines
-        trimmed = messages[-10:] if len(messages) > 10 else messages
-        conversation = []
-        for m in trimmed:
+        conversation: list[dict[str, str]] = []
+        if include_system_and_tools:
+            sys_text = "".join(
+                p.get("text", "") for p in self._system_message.get("content", [])
+                if isinstance(p, dict)
+            )
+            conversation.append({"role": "system", "content": self._truncate(sys_text, self._log_msg_max)})
+            conversation.append({"role": "tools", "content": f"{len(_TOOL_DEFINITIONS)} tool definitions attached"})
+        for m in messages:
             role = m.get("role", "?")
             content = m.get("content", "")
             if isinstance(content, list):
                 # tool result or multi-part — extract text portions
                 parts = [p.get("text", str(p)) for p in content if isinstance(p, dict)]
                 content = " | ".join(parts)
-            text = str(content)
-            if self._log_msg_max != -1 and len(text) > self._log_msg_max:
-                text = text[:self._log_msg_max] + f" … [TRUNCATED — {len(text)} chars total, showing {self._log_msg_max}]"
+            text = self._truncate(str(content), self._log_msg_max)
+            if m.get("tool_calls"):
+                tcs = [f"{t['function']['name']}({t['function']['arguments']})"
+                       for t in m["tool_calls"]]
+                text = (text + f"  tool_calls={tcs}").strip()
             conversation.append({"role": role, "content": text})
 
-        log.debug(
+        self._log_emit(
             "llm_request",
             extra={
                 "event": "llm_request",
@@ -122,6 +146,7 @@ class LLMClient:
     ) -> None:
         choice = response.choices[0]
         msg = choice.message
+        finish_reason = getattr(choice, "finish_reason", None)
 
         # Extract what the LLM decided to do
         if msg.tool_calls:
@@ -132,12 +157,9 @@ class LLMClient:
                 "args": tc.function.arguments,  # raw JSON string
             }
         else:
-            text = msg.content or ""
-            if self._log_resp_max != -1 and len(text) > self._log_resp_max:
-                text = text[:self._log_resp_max] + f" … [TRUNCATED — {len(text)} chars total, showing {self._log_resp_max}]"
             response_summary = {
                 "type": "text",
-                "content": text,
+                "content": self._truncate(msg.content or "", self._log_resp_max),
             }
 
         usage = getattr(response, "usage", None)
@@ -150,30 +172,35 @@ class LLMClient:
             }
 
         if self._log_responses:
-            log.debug(
+            self._log_emit(
                 "llm_response",
                 extra={
                     "event": "llm_response",
                     "call_type": call_type,
                     "model": model,
                     "duration_ms": duration_ms,
+                    "finish_reason": finish_reason,
                     "response": response_summary,
                     **token_info,
                     **(context or {}),
                 },
             )
 
-        # Always log token usage at INFO so it's visible without debug mode
+        # Always log token usage at INFO so it's visible without debug mode.
+        # finish_reason included — 'content_filter' with 0 tokens is the Bedrock
+        # content-filter signature, so surfacing it here makes filter blocks obvious.
         log.info(
-            "llm tokens — in=%d out=%d cache_read=%d duration=%dms tool=%s",
+            "llm tokens — in=%d out=%d cache_read=%d duration=%dms finish=%s tool=%s",
             token_info.get("input_tokens", 0),
             token_info.get("output_tokens", 0),
             token_info.get("cache_read_tokens", 0),
             duration_ms,
+            finish_reason,
             response_summary.get("tool", "text"),
             extra={
                 "event": "llm_tokens",
                 "model": model,
+                "finish_reason": finish_reason,
                 **token_info,
                 "duration_ms": duration_ms,
                 **(context or {}),
@@ -188,7 +215,8 @@ class LLMClient:
         context: dict | None = None,
     ) -> Any:
         """Call the reasoning model. context dict is logged as structured fields."""
-        self._log_request(self._reasoning_model, messages, "reason", context)
+        self._log_request(self._reasoning_model, messages, "reason", context,
+                          include_system_and_tools=True)
 
         # Provider-specific kwargs. The anthropic-beta prompt-caching header is a
         # native-Anthropic-API construct — Bedrock rejects/ignores it and instead

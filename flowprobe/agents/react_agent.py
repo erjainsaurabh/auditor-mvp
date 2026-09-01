@@ -29,6 +29,7 @@ from flowprobe.agents.console import (
     ts,
 )
 from flowprobe.agents.dispatch import dispatch
+from flowprobe.agents.redaction import is_sensitive
 from flowprobe.agents.replay import FingerprintReplayer
 from flowprobe.agents.session_utils import (
     execute_captures,
@@ -168,7 +169,6 @@ def run_test_condition(
 
         data_context = ""
         if step.data:
-            _sensitive = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
             # NOTE: the old "Test data (use these exact values).\n  key: value" shape — an
             # indented key:value block under that imperative header — is DETERMINISTICALLY
             # blocked by AWS Bedrock's content filter when it follows a tool-use turn (it reads
@@ -178,7 +178,7 @@ def run_test_condition(
             # tripped it and real credentials in neutral prose did not. Do not restore the old shape.
             data_lines = "\n".join(
                 f"- {k}: use placeholder {{{{{k}}}}} (sensitive value, substituted at run time)"
-                if _sensitive.search(k) else f"- {k}: '{v}'"
+                if is_sensitive(k) else f"- {k}: '{v}'"
                 for k, v in step.data.items()
             )
             override_note = (
@@ -478,12 +478,11 @@ def _react_loop(
             old_content = messages[-1]["content"]
             # Replace the nav_context portion — strip everything from "You are continuing"
             # or "Browser is currently at" to end, then append fresh URL
-            import re as _re2
-            cleaned = _re2.sub(
+            cleaned = re.sub(
                 r"(You are continuing from the previous step\..*|Browser is currently at:.*)",
                 "",
                 old_content,
-                flags=_re2.DOTALL,
+                flags=re.DOTALL,
             ).rstrip()
             messages[-1]["content"] = (
                 cleaned + "\n"
@@ -534,8 +533,7 @@ def _react_loop(
     snap_lower = initial_snapshot.lower()
     # Extract short quoted strings from hints (e.g. "Campaign", "--") plus
     # words from step description as subject keywords to check in the snapshot.
-    import re as _re
-    _quoted = _re.findall(r'"([^"]{2,30})"', " ".join(step.hints or []))
+    _quoted = re.findall(r'"([^"]{2,30})"', " ".join(step.hints or []))
     _desc_words = [w for w in step.description.split() if len(w) > 4][:5]
     _keywords = list(dict.fromkeys(_quoted + _desc_words))  # dedup, preserve order
     log.debug("pre-loaded read_page", extra={
@@ -662,9 +660,8 @@ def _react_loop(
             action_elapsed = time.perf_counter() - action_start
             url_after = session.current_url()
 
-            _sensitive_re = re.compile(r"password|passwd|secret|token|credential", re.IGNORECASE)
             safe_args = {
-                k: "[sensitive]" if _sensitive_re.search(k) else v
+                k: "[sensitive]" if is_sensitive(k) else v
                 for k, v in args.items()
             }
             result_summary = result.split("\n")[0][:200] if result else ""
@@ -753,8 +750,7 @@ def _react_loop(
             # the filename in evidence so the post-run upload hook can stamp the URL.
             if name == "download_file" and not result.startswith("error") and evidence.produces_type:
                 # result format: "downloaded 'filename.xlsx' (N bytes) → token: downloaded_file_1"
-                import re as _re
-                m = _re.search(r"downloaded '([^']+)'", result)
+                m = re.search(r"downloaded '([^']+)'", result)
                 if m:
                     evidence.set_artifact(filename=m.group(1), url="")
 

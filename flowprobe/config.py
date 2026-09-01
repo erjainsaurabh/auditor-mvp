@@ -10,8 +10,16 @@ class Settings(BaseSettings):
     cache_system_prompt: bool = True
     max_budget_usd: float = 10.00
     budget_duration: str = "1d"
+    # LLM request/response logging — three orthogonal axes:
+    #   what:       log_llm_prompts / log_llm_responses  (on/off)
+    #   level:      log_llm_level = "debug" | "info"      (where it shows)
+    #   truncation: log_message_max_chars / log_response_max_chars  (-1 = full, 0 = header only)
+    # For full payload visibility on the console during debugging, set
+    # log_llm_level=info and the *_max_chars to -1. Payloads contain DOM snapshots
+    # and credential-shaped content, so keep level=debug for normal runs.
     log_llm_prompts: bool = True
     log_llm_responses: bool = True
+    log_llm_level: str = "debug"
     log_message_max_chars: int = 0
     log_response_max_chars: int = 0
 
