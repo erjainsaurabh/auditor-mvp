@@ -24,6 +24,16 @@ When test data is provided, use the data key names as hints for which field to i
 Perform the minimal interaction needed to reach the expected state, then verify and stop.
 Do NOT fill other fields. Do not verify side-effects not mentioned in the expected outcome.
 
+PLACEHOLDER RULE — read carefully:
+A field value shown as {{key}} (e.g. {{campaign1}}, {{User}}) is a LIVE substitution token,
+NOT missing, empty, or broken data. Pass it to tools EXACTLY as written — e.g.
+select_filter(filter_label="Campaign", option_value="{{campaign1}}") or
+fill_field("User", "{{User}}"). The system replaces each token with the real value at
+execution time, so the field will receive the correct value even though you never see it.
+When several numbered keys exist (campaign1, campaign2, …), act on EACH one — call the
+tool once per key, passing that key's placeholder. NEVER call verify_claim(unverifiable)
+because values are {{placeholders}}: they are valid inputs, treat them as present and proceed.
+
 Interaction rules:
 - For autocomplete/lookup fields (Agency, Division, Funding Type, Procurement Method, Vendor):
   call fill_field(field_label, value) DIRECTLY — do NOT click the field first.

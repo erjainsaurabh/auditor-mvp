@@ -14,6 +14,21 @@ from flowprobe.agents.redaction import is_sensitive, redact_result
 from flowprobe.storage.base import EvidenceStore
 
 
+def _subst(value: Any, step: Any) -> Any:
+    """Replace {{key}} tokens in a tool-arg value with the real value from step.data.
+
+    The reduced-signal / redacted prompts send data as {{placeholders}} so credential
+    and value-dense content never reaches the LLM; the real value is substituted here,
+    at execution time. This MUST run for every value-bearing tool (fill_field,
+    select_option, select_filter) — not just fill_field — otherwise a step that uses a
+    combobox/filter receives the literal "{{key}}" string and matches nothing.
+    Unknown keys are left as-is so a genuinely missing key is visible rather than blank.
+    """
+    if not isinstance(value, str):
+        return value
+    return re.sub(r"\{\{(\w+)\}\}", lambda m: step.data.get(m.group(1), m.group(0)), value)
+
+
 def dispatch(
     name: str,
     args: dict[str, Any],
@@ -53,11 +68,7 @@ def dispatch(
             return session.hover(args["element_description"])
 
         case "fill_field":
-            value = re.sub(
-                r"\{\{(\w+)\}\}",
-                lambda m: step.data.get(m.group(1), m.group(0)),
-                args["value"],
-            )
+            value = _subst(args["value"], step)
             display_value = "[sensitive]" if is_sensitive(args["field_label"]) else repr(value)
             console.print(f"           [dim]data: field={args['field_label']!r} value={display_value}[/dim]")
             result = session.fill_field(args["field_label"], value)
@@ -84,7 +95,8 @@ def dispatch(
             return session.get_field_options(args["field_label"])
 
         case "select_option":
-            result = session.select_option(args["field_label"], args["option_value"])
+            option_value = _subst(args["option_value"], step)
+            result = session.select_option(args["field_label"], option_value)
             if not result.startswith("error"):
                 session._last_interacted_label = args["field_label"].rstrip(" *").strip()
             return result
@@ -92,7 +104,8 @@ def dispatch(
         case "select_filter":
             # Accept both "container_attribute" (current) and "scoped_selector" (legacy alias)
             container_attr = args.get("container_attribute") or args.get("scoped_selector", "")
-            result = session.select_filter(args["filter_label"], args["option_value"], container_attr)
+            option_value = _subst(args["option_value"], step)
+            result = session.select_filter(args["filter_label"], option_value, container_attr)
             if not result.startswith("error"):
                 session._last_interacted_label = args["filter_label"].rstrip(" *").strip()
             return result
