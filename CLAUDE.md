@@ -419,3 +419,70 @@ V2.0    Full framework — two-level graph, HTML report, visual diffing, Postgre
 6. **Sync Playwright only** — no async; the ReAct loop is inherently sequential
 7. **Unverifiable is a first-class status** — ambiguous claims are flagged, never guessed
 8. **Credentials never go to the LLM** — login is a deterministic pre-step in run.py using .env
+
+---
+
+## AWS Bedrock — provider notes & the content-filter gotcha
+
+FlowProbe can run on **AWS Bedrock** instead of the native Anthropic API to avoid
+API-key maintenance. This is config, not code (design decision #1):
+
+```
+# .env — Bedrock mode. No ANTHROPIC_API_KEY; auth is the boto3 credential chain
+# (EC2/ECS IAM role, or ~/.aws locally — same mechanism the S3 client uses).
+REASONING_MODEL=bedrock/us.anthropic.claude-sonnet-4-6
+FAST_MODEL=bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0
+AWS_REGION=us-east-1
+```
+
+- Claude Sonnet 4 / Haiku 4.5 on Bedrock are **inference-profile only** → the model
+  ids MUST carry the `us.` prefix (cross-region profile), not the bare foundation id.
+- The IAM role needs `bedrock:InvokeModel` + `bedrock:InvokeModelWithResponseStream`
+  (region-wildcard resources — `us.` profiles fan out across us-east-1/2, us-west-2),
+  plus the model enabled in the Bedrock console. `llm_client.py` fast-fails IAM
+  `AccessDenied` with the exact missing action + ARN instead of retrying.
+- `llm_client.py` skips the `anthropic-beta` prompt-caching header on Bedrock (native
+  header; Bedrock honours the `cache_control` markers via LiteLLM instead) and passes
+  `aws_region_name`.
+
+### The content-filter gotcha (Bedrock only — the native API does not do this)
+
+Bedrock applies a **content filter** that blocks a request with `finish_reason=content_filter`
+and **0 input tokens** (canned text: *"Sorry, the model cannot answer this question."*).
+It is **threshold-based on accumulated "credential/automation" signal**, NOT about real
+secrets — placeholders trip it just as literal values do. It fires when credential/
+automation-shaped text stacks up next to a tool-use turn: e.g. a **login step** where
+hints (`fill_field('Password', ...)`), the inventory suggestion (`fill_field → click`),
+a data block, and the login-page DOM (`textbox "Login"`/`"Password"`/`"Sign in"`) all
+pile up. Each piece alone is fine; the sum crosses the threshold. Verified: it is NOT
+the account, NOT a custom guardrail, NOT the model — the native Anthropic API runs the
+same prompts fine.
+
+**Mitigations already in the code (do not regress):**
+1. **Neutral framing** in `react_agent.py` — `data_context` uses `Field values for this
+   step.` + `- key: 'value'` (NOT `Test data (use these exact values).` + indented
+   `  key: value`); `hints_context` uses `Approach hints (optional…): …` inline (NOT
+   `Suggested tool calls:` + numbered `1. tool()`). The old imperative/numbered shapes
+   are deterministically blocked. Do not restore them.
+2. **Redaction** via `flowprobe/agents/redaction.py` `is_sensitive()` — credential/PII
+   *values* are sent as `{{placeholders}}`; the executor substitutes the real value at
+   fill-time, so the model never sees it. The regex must match the actual data keys
+   (e.g. key `User` needs `user` in the pattern, not just `username`).
+3. **Content-filter fallback** in `_react_loop` — on a `content_filter` block, retry
+   once with a reduced-signal prompt (drop the inventory suggestion + nav context, and
+   drop the data block when hints already carry the placeholders), collapsing to the
+   shape proven to clear the filter: `claim + expected + hints + DOM`. General and
+   self-healing — handles any over-dense step, not just login. If it still blocks, the
+   step is marked blocked (`persisted after reduced-prompt retry`).
+
+**Login is the worst case** and relies on the fallback (its full prompt reliably blocks;
+the reduced retry clears it). Other steps carry far less signal and pass directly.
+
+### Full LLM payload logging (debugging the filter)
+
+`llm_client.py` logging has three orthogonal axes: **what** (`LOG_LLM_PROMPTS` /
+`LOG_LLM_RESPONSES`), **level** (`LOG_LLM_LEVEL=debug|info`), **truncation**
+(`LOG_MESSAGE_MAX_CHARS` / `LOG_RESPONSE_MAX_CHARS`, `-1` = full). For the complete
+outgoing request (system + tools + every message) and response on the console, set
+`LOG_LLM_LEVEL=info` + both `*_MAX_CHARS=-1`. `finish_reason` is always on the INFO
+token line, so `finish=content_filter` blocks are visible without enabling full mode.

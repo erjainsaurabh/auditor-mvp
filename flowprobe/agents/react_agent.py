@@ -210,29 +210,27 @@ def run_test_condition(
             ),
         })
 
-        # Reduced-signal variant for the content-filter fallback. AWS Bedrock's content
-        # filter blocks prompts where credential/automation signal stacks up (hints +
-        # inventory + a data block + nav context, next to a tool-use turn). This variant
-        # collapses to the shape empirically proven to clear the filter:
-        # claim + expected + hints + DOM. It drops the inventory suggestion, the nav
-        # context, AND the data block whenever hints already carry the {{placeholders}}
-        # (the block is pure redundancy there — restating credentials is what re-trips the
-        # filter). Only hint-less steps keep a placeholder-only data block as their sole
-        # guidance. The executor substitutes real values at fill-time regardless, so the
-        # step stays fully actionable. Used only on retry after a content-filter block.
-        reduced_data_context = ""
-        if step.data and not step.hints:
-            reduced_lines = "\n".join(f"- {k}: {{{{{k}}}}}" for k in step.data)
-            reduced_data_context = (
-                f"Field values (placeholders substituted at run time).\n{reduced_lines}\n"
-            )
-        reduced_user_content = (
-            f"Claim: {step.description}\n"
-            f"Expected outcome: {step.expected}\n"
-            + hints_context
-            + reduced_data_context
-            + "Verify this claim and call verify_claim when done."
-        )
+        # Progressive reduced-signal variants for the content-filter fallback. AWS Bedrock's
+        # content filter blocks prompts where credential/automation signal stacks up (hints +
+        # inventory + a data block of literal values + nav context, next to a tool-use turn).
+        # On a block we retry with the LEAST-destructive reduction first and shed more only if
+        # it still blocks — so data-dependent steps keep the data they need:
+        #   L1: drop inventory + nav; send the data block as {{placeholders}} (values gone,
+        #       but the agent still knows WHICH keys exist — needed e.g. for multi-select
+        #       campaigns whose hints don't name each value).
+        #   L2: also drop the data block entirely — for credential-dense steps (login) where
+        #       the hints already carry the placeholders and even placeholder-data re-trips it.
+        # The executor substitutes real values at fill-time regardless, so both stay actionable.
+        _rc_base = f"Claim: {step.description}\nExpected outcome: {step.expected}\n"
+        _rc_tail = "Verify this claim and call verify_claim when done."
+        _placeholder_data = ""
+        if step.data:
+            _ph_lines = "\n".join(f"- {k}: {{{{{k}}}}}" for k in step.data)
+            _placeholder_data = f"Field values (placeholders substituted at run time).\n{_ph_lines}\n"
+        reduced_user_contents = [
+            _rc_base + hints_context + _placeholder_data + _rc_tail,  # L1: keep placeholder data
+            _rc_base + hints_context + _rc_tail,                      # L2: drop data block too
+        ]
 
         first_step = False
         console.print(f"    [dim]starting ReAct loop (max {max_actions} steps)… [{ts()}][/dim]")
@@ -255,7 +253,7 @@ def run_test_condition(
             skip_navigate=is_continue,
             pattern_inventory=pattern_inventory,
             preloaded_snapshot=_snap_for_query if (pattern_inventory and not fp_for_step) else None,
-            reduced_user_content=reduced_user_content,
+            reduced_user_contents=reduced_user_contents,
         )
         live_url = session.current_url()
         session_data["_last_url"] = live_url or snap.get("url", "")
@@ -453,7 +451,7 @@ def _react_loop(
     skip_navigate: bool = False,
     pattern_inventory: PatternInventory | None = None,
     preloaded_snapshot: str | None = None,
-    reduced_user_content: str | None = None,
+    reduced_user_contents: list[str] | None = None,
 ) -> StepStatus:
     # --- Tier 1: fingerprint replay (zero LLM calls on stable UI) ---
     if fp_store and fp_for_step and fp_for_step.actions:
@@ -621,7 +619,7 @@ def _react_loop(
             f"You MUST try a different strategy:\n{alts}"
         )
 
-    _reduced_applied = False  # content-filter fallback fires at most once per step
+    _reduced_idx = 0  # how many progressive content-filter reductions have been applied
     for step_num in range(1, max_actions + 1):
         console.print(f"    [dim]── calling LLM (step {step_num}/{max_actions}) … [{ts()}][/dim]")
         llm_start = time.perf_counter()
@@ -660,32 +658,32 @@ def _react_loop(
                 },
             )
             if guardrail_hit:
-                # Content-filter fallback: retry ONCE with the reduced-signal prompt
-                # (inventory dropped, data values → placeholders). The executor still
+                # Content-filter fallback: retry with PROGRESSIVELY reduced prompts, least
+                # destructive first (L1 keeps placeholder data so data-dependent steps stay
+                # correct; L2 drops the data block for credential-dense steps). The executor
                 # substitutes real values at fill-time, so the step stays actionable.
-                # Verified to clear Bedrock's filter where the full prompt reliably trips it.
-                if reduced_user_content and not _reduced_applied:
-                    _reduced_applied = True
-                    # Replace the current step's user message (most recent user turn)
-                    # with the reduced-signal variant, then retry.
+                if reduced_user_contents and _reduced_idx < len(reduced_user_contents):
+                    variant = reduced_user_contents[_reduced_idx]
+                    _reduced_idx += 1
+                    # Replace the current step's user message (most recent user turn), retry.
                     for _m in reversed(messages):
                         if _m.get("role") == "user":
-                            _m["content"] = reduced_user_content
+                            _m["content"] = variant
                             break
                     console.print(
-                        "    [yellow]content filter hit — retrying with reduced-signal prompt "
-                        "(inventory dropped, data values → placeholders)…[/yellow]"
+                        f"    [yellow]content filter hit — retrying with reduced-signal prompt "
+                        f"(level {_reduced_idx}/{len(reduced_user_contents)})…[/yellow]"
                     )
                     log.warning(
                         "content_filter fallback — retrying step with reduced prompt",
                         extra={"event": "content_filter_fallback", "step_id": step.id,
-                               "finish_reason": finish_reason},
+                               "finish_reason": finish_reason, "reduction_level": _reduced_idx},
                     )
                     continue
                 console.print(
                     "    [red]LLM returned no tool call — Bedrock content filter block "
                     f"(finish_reason={finish_reason}, 0-token response)"
-                    + (" — persisted after reduced-prompt retry" if _reduced_applied else "")
+                    + (f" — persisted after {_reduced_idx} reduced-prompt retries" if _reduced_idx else "")
                     + ".[/red]"
                 )
                 if returned_text:
