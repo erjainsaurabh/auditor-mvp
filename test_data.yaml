@@ -1,11 +1,6 @@
-# Test data for all flows — login credentials + requisition form values.
-# Environment-specific values — change these when running against a different
-# Ivalua tenant, staging environment, or test dataset.
-# Referenced in YAML files via {{key}} placeholders.
-
-# Login credentials (never sent to the LLM — masked in data context)
-app_password: change4hhs
-app_username: DOCFINANCEMANAGER@doitt.nyc.gov
+# Login credentials — replace locally or inject securely at runtime.
+app_password: REPLACE_WITH_SECRET
+app_username: user@example.com
 label: Test Requisition MVP - automation
 division: EXECUTIVE DIRECTOR
 funding_type: Expense
